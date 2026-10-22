@@ -107,3 +107,20 @@ statistics likewise use metadata saved before `hci_recv_frame()`. Registration
 failure clears `adapter->hcidev` after freeing its HCI device. Wi-Fi paths are
 unchanged. Patch application is checked; kernel/module compilation and device
 behavior remain separate verification steps.
+
+On the first device scan, HCI registration, touch, Wi-Fi and SD remained working,
+but Linux reported `Unable to create CMAC crypto context`. The captured kernel
+configuration enabled CMAC, ECB, ECDH and the crypto manager, but disabled AES.
+[Bluetooth Kconfig](https://github.com/gregkh/linux/blob/v6.18.35/net/bluetooth/Kconfig)
+only implies the AES provider; an existing explicit `CONFIG_CRYPTO_AES=n` wins.
+`CONFIG_CRYPTO_LIB_AES=y` alone does not register the provider needed by
+[`crypto_alloc_shash("cmac(aes)")`](https://github.com/gregkh/linux/blob/v6.18.35/net/bluetooth/smp.c).
+The BLE fragment therefore explicitly enables `CONFIG_CRYPTO_AES=y`.
+
+Scan now recognizes the selected controller's matching MGMT Discovering stopped
+event as normal completion. StopDiscovery cleanup also accepts status `0x0b`
+(Rejected), since an already finished discovery can race cleanup. This exception
+is restricted to StopDiscovery; other commands and rejection statuses still
+fail. Offline fixtures cover normal stop, the cleanup race and rejection of
+other commands. The updated AES configuration still requires a fresh kernel
+build and device scan before pairing is attempted.

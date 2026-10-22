@@ -6,6 +6,9 @@ CONFIG_BT_LE=y
 CONFIG_BT_DEBUGFS=n
 CONFIG_BT_SELFTEST=n
 CONFIG_BT_LE_L2CAP_ECRED=n
+# BT only implies CRYPTO_AES; an existing explicit n otherwise overrides it.
+# LIB_AES alone does not register the aes provider required by cmac(aes).
+CONFIG_CRYPTO_AES=y
 CONFIG_UHID=y
 CONFIG_HID=y
 CONFIG_HID_GENERIC=y

@@ -230,7 +230,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for symbol in BT BT_LE UHID; do
+          for symbol in BT BT_LE UHID CRYPTO_AES CRYPTO_CMAC CRYPTO_ECB CRYPTO_ECDH; do
             grep -Fxq "CONFIG_${symbol}=y" work/obj/.config
           done
           ! grep -Fxq 'CONFIG_BT_BREDR=y' work/obj/.config
@@ -247,10 +247,14 @@ jobs:
             # Match build-m1.sh's default quiet driver staging. These are
             # diagnostic templates; 0030/0031 require rendered IRAM addresses.
             case "${patch_file##*/}" in
-              0023-*|0029-*|0030-*|0031-*) continue ;;
+              0023-*|0026-*|0029-*|0030-*|0031-*) continue ;;
             esac
             patch --batch --forward -d "$host" -p1 < "$patch_file"
           done
+          if grep -R -n -E '0xBBDEAD0[0-9a-fA-F]' "$host" --include='*.c' --include='*.h'; then
+            echo 'Unrendered diagnostic address in the quiet driver' >&2
+            exit 1
+          fi
           make -C work/linux-custom O="$GITHUB_WORKSPACE/work/obj" \
             M="$host" target=sdio CONFIG_BT_ENABLED=n CONFIG_ESP_HOSTED_BLE=y \
             CONFIG_DEBUG_LOGS=n CONFIG_AP_SUPPORT=y modules 2>&1 | tee artifacts/ble-module.log

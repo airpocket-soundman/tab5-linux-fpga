@@ -17,6 +17,26 @@ int main(void) {
  uint8_t discard[64];
  assert(recv(pair[1],discard,sizeof(discard),0)==6);
  assert(recv(pair[1],discard,sizeof(discard),0)==6);
+ uint8_t already_stopped[]={2,0,0,0,3,0,0x24,0,0x0b};
+ assert(send(pair[1],already_stopped,sizeof(already_stopped),0)==sizeof(already_stopped));
+ assert(mgmt_command(0x24,NULL,0,1)==0);
+ assert(recv(pair[1],discard,sizeof(discard),0)==6);
+ already_stopped[0]=1;
+ assert(send(pair[1],already_stopped,sizeof(already_stopped),0)==sizeof(already_stopped));
+ assert(mgmt_command(0x24,NULL,0,1)==0);
+ assert(recv(pair[1],discard,sizeof(discard),0)==6);
+ already_stopped[0]=2;
+ already_stopped[6]=5;
+ assert(send(pair[1],already_stopped,sizeof(already_stopped),0)==sizeof(already_stopped));
+ assert(mgmt_command(5,NULL,0,1)<0 && errno==EIO);
+ assert(recv(pair[1],discard,sizeof(discard),0)==6);
+ uint8_t scan_started[]={1,0,0,0,3,0,0x23,0,0};
+ uint8_t scan_stopped[]={0x13,0,0,0,2,0,6,0};
+ assert(send(pair[1],scan_started,sizeof(scan_started),0)==sizeof(scan_started));
+ assert(send(pair[1],scan_stopped,sizeof(scan_stopped),0)==sizeof(scan_stopped));
+ assert(scan("K68")==0 && scan_finished);
+ assert(recv(pair[1],discard,sizeof(discard),0)==7 && le16(discard)==0x23);
+ assert(recv(pair[1],discard,sizeof(discard),MSG_DONTWAIT)<0 && errno==EAGAIN);
  mgmt_fd=-1;
  att_fd=pair[0];
  uint8_t service[]={0x11,6,1,0,20,0,0x12,0x18};
@@ -64,6 +84,6 @@ int main(void) {
  assert(forward_notification(malformed,sizeof(malformed))<0);
  fclose(file); uhid_fd=-1;
  close(pair[0]); close(pair[1]); att_fd=-1;
- puts("PASS: MGMT status/complete, HID discovery, long read, numbered/unnumbered UHID input, malformed notification");
+ puts("PASS: MGMT status/complete, discovery stop/race, HID discovery, long read, numbered/unnumbered UHID input, malformed notification");
  return 0;
 }

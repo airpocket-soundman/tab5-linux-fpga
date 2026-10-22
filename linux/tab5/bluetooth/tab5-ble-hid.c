@@ -39,6 +39,7 @@ static int mgmt_fd = -1, att_fd = -1, uhid_fd = -1;
 static uint16_t controller;
 static uint8_t pairing_peer[7];
 static int pairing_active;
+static int scan_finished;
 static int input_started, input_numbered;
 static volatile sig_atomic_t stopping;
 static struct uhid_event uevent;
@@ -63,6 +64,10 @@ static int mgmt_send(uint16_t op, const uint8_t *data, size_t len) {
 }
 /* Deal only with the selected controller; never print key material. */
 static void mgmt_event(uint16_t event, const uint8_t *b, size_t len) {
+ if (event==0x0013 && len==2 && b[0]==6 && b[1]<=1) {
+  scan_finished=!b[1];
+  return;
+ }
  if (!pairing_active || len<7 || memcmp(b,pairing_peer,7)) return;
  if (event==0x0017 && len>=12) {
   printf("Enter passkey %06u on the keyboard and press Enter (%u digits entered).\n",
@@ -95,10 +100,13 @@ static int mgmt_command(uint16_t op, const uint8_t *data, size_t len, int second
   if (n<6 || le16(b+2)!=controller || le16(b+4)>(size_t)n-6) continue;
   size_t count=le16(b+4); uint16_t event=le16(b);
   if (event==1 && count>=3 && le16(b+6)==op) {
-   if (b[8]) { fprintf(stderr,"MGMT command 0x%04x failed, status 0x%02x\n",op,b[8]); errno=EIO; return -1; }
+   if (b[8] && !(op==0x0024 && b[8]==0x0b)) {
+    fprintf(stderr,"MGMT command 0x%04x failed, status 0x%02x\n",op,b[8]); errno=EIO; return -1;
+   }
    return 0;
   }
   if (event==2 && count>=3 && le16(b+6)==op && b[8]) {
+   if (op==0x0024 && b[8]==0x0b) return 0; /* Already stopped: idempotent cleanup. */
    fprintf(stderr,"MGMT command 0x%04x rejected, status 0x%02x\n",op,b[8]); errno=EIO; return -1;
   }
   mgmt_event(event,b+6,count);
@@ -116,12 +124,16 @@ static int open_controller(void) {
 }
 static int scan(const char *wanted) {
  uint8_t kind=6,b[1024]; time_t until=time(NULL)+20;
+ scan_finished=0;
  if (mgmt_command(0x0023,&kind,1,10)<0) return -1;
  printf("Scanning BLE for 20 seconds, name filter: %s\n",wanted); fflush(stdout);
- while (!stopping && time(NULL)<until) {
+ while (!stopping && !scan_finished && time(NULL)<until) {
   if (!readable(mgmt_fd,500)) continue;
   ssize_t n=recv(mgmt_fd,b,sizeof(b),0);
-  if (n<20 || le16(b)!=0x0012 || le16(b+2)!=controller ||
+  if (n<6 || le16(b+2)!=controller || le16(b+4)>(size_t)n-6) continue;
+  mgmt_event(le16(b),b+6,le16(b+4));
+  if (scan_finished) return 0;
+  if (n<20 || le16(b)!=0x0012 ||
       le16(b+4)<14 || le16(b+4)>(size_t)n-6) continue;
   const uint8_t *p=b+6; size_t eir=le16(p+12);
   if (eir>(size_t)le16(b+4)-14) continue;
@@ -139,7 +151,7 @@ static int scan(const char *wanted) {
   printf("%02X:%02X:%02X:%02X:%02X:%02X %s %s\n",p[5],p[4],p[3],p[2],p[1],p[0],
    p[6]==1?"public":"random",name); fflush(stdout);
  }
- return mgmt_command(0x0024,&kind,1,10);
+ return scan_finished?0:mgmt_command(0x0024,&kind,1,10);
 }
 static int att_request(const uint8_t *request, size_t len, uint8_t *reply, size_t cap) {
  if (send(att_fd,request,len,0)!=(ssize_t)len) return -1;
