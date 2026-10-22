@@ -35,7 +35,7 @@ def payload(output, artifacts):
         shutil.rmtree(dest)
     (dest / 'usr/bin').mkdir(parents=True)
     manifest = {}
-    for app in ('vim', 'nano', 'sl'):
+    for app in ('vim', 'nano', 'sl', 'fpga-link'):
         source = target / 'usr/bin' / app
         if source.is_symlink() or not source.is_file():
             raise SystemExit(f'Expected genuine application binary: {source}')
@@ -60,6 +60,11 @@ def payload(output, artifacts):
         if not (terminfo / terminal).is_file():
             raise SystemExit(f'Missing required terminfo: {terminal}')
     shutil.copytree(terminfo, dest / 'usr/share/terminfo')
+    # Buildroot omits the large runtime package. Vim still sources defaults.vim
+    # on ordinary startup, so ship a small explicit default for pinned Vim 9.1.
+    runtime = dest / 'usr/share/vim/vim91'
+    runtime.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(Path(__file__).with_name('defaults.vim'), runtime / 'defaults.vim')
     (artifacts / 'applications.json').write_text(json.dumps(manifest, indent=2) + '\n')
     with tarfile.open(artifacts / 'tab5-terminal-apps.tar.gz', 'w:gz') as archive:
         archive.add(dest / 'usr', arcname='usr')

@@ -44,9 +44,6 @@ if text.count(marker) != 1:
 extra = '''# Tab5 tiny editor: no job/channel/GUI or shell process creation.
 VIM_CONF_OPTS += --with-features=tiny --enable-multibyte --disable-nls --disable-netbeans --disable-channel --disable-terminal
 VIM_CONF_ENV += CFLAGS="$(TARGET_CFLAGS) -DUSE_SYSTEM -DTAB5_VIM_NO_SHELL" ac_cv_func_fork=no ac_cv_func_vfork=yes
-VIM_FLAT_STACKSIZE = 65536
-NANO_FLAT_STACKSIZE = 65536
-SL_FLAT_STACKSIZE = 32768
 
 '''
 recipe.write_text(text.replace(marker, extra + marker))
@@ -85,37 +82,19 @@ PY
 toolchain() { brmake -j"${TAB5_APPS_JOBS:-$(nproc)}" toolchain; }
 
 sdk() {
-    # Buildroot's normal `sdk` depends on all packages. Package the already
-    # completed host/toolchain using its same relocation metadata, even when
-    # an application subsequently fails to compile.
-    local host="$output/host"
-    test -d "$host/bin"
-    install -m 755 "$source_dir/support/misc/relocate-sdk.sh" "$host/relocate-sdk.sh"
-    mkdir -p "$host/share/buildroot"
-    python3 - "$host" <<'PY'
-from pathlib import Path
-import sys
-root = Path(sys.argv[1])
-needle = str(root).encode()
-paths = []
-for path in root.rglob('*'):
-    if path.is_symlink() or not path.is_file() or path.name in ('sdk-location', 'sdk-relocs'):
-        continue
-    data = path.read_bytes()
-    if b'\0' not in data and needle in data:
-        paths.append('./' + str(path.relative_to(root)))
-(root / 'share/buildroot/sdk-location').write_text(str(root) + '\n')
-(root / 'share/buildroot/sdk-relocs').write_text('\n'.join(sorted(paths)) + '\n')
-PY
     cp "$output/.config" "$sdk_artifacts/buildroot.config"
     cp "$artifacts/build-info.txt" "$sdk_artifacts/build-info.txt"
-    tar -C "$output" -czf "$sdk_artifacts/tab5-rv32imac-nommu-sdk.tar.gz" host
-    (cd "$sdk_artifacts" && sha256sum tab5-rv32imac-nommu-sdk.tar.gz > SHA256SUMS.txt)
+    bash "$script_dir/package-sdk.sh" "$source_dir" "$output" "$sdk_artifacts"
 }
 
 apps() {
     test -f "$script_dir/patches/vim/0001-tab5-tiny-nommu-no-shell.patch"
     brmake -j"${TAB5_APPS_JOBS:-$(nproc)}" ncurses nano sl vim
+    "$output/host/bin/riscv32-buildroot-linux-uclibc-gcc" \
+        -std=c11 -Os -fPIC -static -march=rv32imac_zicsr_zifencei -mabi=ilp32 \
+        -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 \
+        '-Wl,-elf2flt=-r -s32768' \
+        -o "$output/target/usr/bin/fpga-link" "$repo/tools/fpga-link/fpga_link.c"
     python3 "$script_dir/package.py" "$output" "$artifacts"
     mkdir -p "$artifacts/licenses"
     cp "$source_dir/package/vim/vim.mk" "$source_dir/package/nano/nano.mk" \

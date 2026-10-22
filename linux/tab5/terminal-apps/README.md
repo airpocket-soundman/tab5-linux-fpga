@@ -21,7 +21,9 @@ in `buildroot.config`; do not use a host Linux or ESP-IDF compiler instead.
 The applications are genuine upstream Vim (tiny), nano (tiny), and sl.
 Vim shell commands, external filters, and shell wildcard expansion are
 disabled for NOMMU safety; they return an error. Job/channel/GUI/terminal
-features and Vim's large runtime package are omitted. Multibyte support is
+features and Vim's large runtime package are omitted. A minimal
+`defaults.vim` is included so ordinary startup does not warn about a missing
+runtime file. Multibyte support is
 requested for Vim and wide-character ncurses is enabled. Actual Japanese
 input/display still requires testing with the target terminal and locale.
 Nano's tiny build omits shell-spawning features and several full-editor
@@ -29,7 +31,8 @@ features. These choices preserve ordinary interactive editing and saving
 as the first runtime acceptance criterion; cross-compilation is not proof
 of target operation.
 
-The payload contains only three static applications and terminfo, including
+The payload contains these three static applications, a small `fpga-link`
+C mock test tool (no hardware backend), minimal Vim defaults, and terminfo, including
 `vt102`, `linux`, `xterm`, and `xterm-256color`. It does not replace libc,
 BusyBox, `vi`, firmware, kernel modules, or network daemons. Current board
 network, SD, and display helpers are copied explicitly when repacking the
