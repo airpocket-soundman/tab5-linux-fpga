@@ -72,3 +72,38 @@ alone does not establish successful keyboard input.
 Protocol references: [Linux management API](https://github.com/bluez/bluez/blob/5.79/doc/mgmt-api.txt),
 [Linux UHID](https://docs.kernel.org/hid/uhid.html), and the Bluetooth ATT/GATT/HID
 over GATT specifications. Avoid publishing pairing logs or private bond material.
+
+## HCI buffer ownership audit (2026-10-23)
+
+Patch `0037-easystick-bt-skb-ownership.patch` addresses the previously unbuilt
+Bluetooth path. In Linux 6.18.35,
+[`hci_send_frame()`](https://github.com/gregkh/linux/blob/v6.18.35/net/bluetooth/hci_core.c)
+frees the original buffer if the driver's send callback returns a negative value.
+`hci_recv_frame()` queues the receive buffer on success and frees it on error;
+the driver must not inspect that buffer after either outcome.
+
+The Bluetooth callback now creates a separate transport buffer without changing
+the original. Allocation failure returns `-ENOMEM` with the original intact for
+HCI core to free. A copy failure frees the copy and consumes the original as a
+drop. Unsupported transport, absent adapter or missing write callback consumes
+the original as a drop before allocating a copy. SDIO and SPI callbacks were
+audited at pinned ESP-Hosted commit
+`8626b42fd3f9eb5a1ccb5daea481f0d8d32b1685`:
+
+* [SDIO write](https://github.com/espressif/esp-hosted/blob/8626b42fd3f9eb5a1ccb5daea481f0d8d32b1685/esp_hosted_ng/host/sdio/esp_sdio.c)
+  frees its buffer for invalid context, oversize or backpressure errors; success
+  transfers it to the transmission queue.
+* [SPI write](https://github.com/espressif/esp-hosted/blob/8626b42fd3f9eb5a1ccb5daea481f0d8d32b1685/esp_hosted_ng/host/spi/esp_spi.c)
+  likewise consumes it, including the closed-data-path error.
+* The generic `esp_send_packet()` missing-adapter/ops error does not free its
+  argument. Bluetooth therefore calls the validated SDIO/SPI callback directly.
+  The existing driver lifecycle must keep adapter/ops valid during HCI sends.
+
+After transport submission the original is consumed and the callback returns
+zero, including transport drops. Drops increment `err_tx`; a zero callback return
+means buffer ownership was accepted, not that the controller received the frame.
+Successful submissions update counters using saved type/length only. Receive
+statistics likewise use metadata saved before `hci_recv_frame()`. Registration
+failure clears `adapter->hcidev` after freeing its HCI device. Wi-Fi paths are
+unchanged. Patch application is checked; kernel/module compilation and device
+behavior remain separate verification steps.

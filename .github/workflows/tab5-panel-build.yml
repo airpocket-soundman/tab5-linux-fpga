@@ -244,6 +244,11 @@ jobs:
           host="$GITHUB_WORKSPACE/work/esp-hosted/esp_hosted_ng/host"
           find "$host" -type f \( -name '*.c' -o -name '*.h' -o -name Makefile \) -exec sed -i 's/\r$//' {} +
           for patch_file in linux/buildroot-external/package/esp-hosted-ng/*.patch; do
+            # Match build-m1.sh's default quiet driver staging. These are
+            # diagnostic templates; 0030/0031 require rendered IRAM addresses.
+            case "${patch_file##*/}" in
+              0023-*|0029-*|0030-*|0031-*) continue ;;
+            esac
             patch --batch --forward -d "$host" -p1 < "$patch_file"
           done
           make -C work/linux-custom O="$GITHUB_WORKSPACE/work/obj" \

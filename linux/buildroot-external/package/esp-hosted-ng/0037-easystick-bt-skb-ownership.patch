@@ -1,0 +1,191 @@
+From: Tab5 Linux FPGA maintainers
+Subject: [PATCH] host: honor Bluetooth skb ownership at HCI and transport boundaries
+
+Linux HCI frees the original skb on a negative send callback return. Send a
+separate transport copy and return zero after consuming the original, including
+transport drops. Only allocation failure returns -ENOMEM with original intact.
+SDIO/SPI callbacks consume their skb on every return; bypass the generic wrapper
+whose missing-ops path does not consume. No Wi-Fi path is changed.
+Save RX metadata before hci_recv_frame queues/frees its skb, and clear hcidev
+when registration fails. See linux/tab5/bluetooth/README.md for ownership audit.
+
+--- a/esp_bt.c
++++ b/esp_bt.c
+@@ -61,96 +61,64 @@
+ static ESP_BT_SEND_FRAME_PROTOTYPE()
+ {
+ 	struct esp_payload_header *hdr;
+-	size_t total_len, len = skb->len;
+-	int ret = 0;
++	size_t len = skb->len;
++	int ret;
+ #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0))
+ 	struct hci_dev *hdev = (struct hci_dev *)(skb->dev);
+ #endif
+ 	struct esp_adapter *adapter = hci_get_drvdata(hdev);
+-	struct sk_buff *new_skb;
+-	u8 pad_len = 0, realloc_skb = 0;
+-	u8 *pos = NULL;
+-	u8 pkt_type;
+-
+-	if (!adapter) {
+-		esp_err("Invalid args");
+-		return -EINVAL;
+-	}
+-	esp_hex_dump_verbose("bt_tx: ", skb->data, len);
+-
+-	/* Create space for payload header */
++	struct sk_buff *copy;
++	u8 pad_len, pkt_type = hci_skb_pkt_type(skb);
++	int (*transport_write)(struct esp_adapter *, struct sk_buff *);
++
++	/* Both supported transport callbacks consume their skb on every return.
++	 * Call a validated callback directly: esp_send_packet() has a separate
++	 * missing-ops error path which does not consume its skb.
++	 */
++	if (!adapter || !adapter->if_ops || !adapter->if_ops->write ||
++	    (adapter->if_type != ESP_IF_TYPE_SDIO &&
++	     adapter->if_type != ESP_IF_TYPE_SPI))
++		goto drop_original;
++	transport_write = adapter->if_ops->write;
+ 	pad_len = sizeof(struct esp_payload_header);
+-	total_len = len + sizeof(struct esp_payload_header);
+-
+-	/* Align buffer len */
+-	pad_len += SKB_DATA_ADDR_ALIGNMENT - (total_len % SKB_DATA_ADDR_ALIGNMENT);
+-
+-	pkt_type = hci_skb_pkt_type(skb);
+-
+-	if (skb_headroom(skb) < pad_len) {
+-		/* Headroom is not sufficient */
+-		realloc_skb = 1;
+-	}
+-
+-	if (realloc_skb || !IS_ALIGNED((unsigned long) skb->data, SKB_DATA_ADDR_ALIGNMENT)) {
+-		/* Realloc SKB */
+-		if (skb_linearize(skb)) {
+-			hdev->stat.err_tx++;
+-			return -EINVAL;
+-		}
+-
+-		new_skb = esp_if_alloc_skb(adapter, skb->len + pad_len);
+-
+-		if (!new_skb) {
+-			esp_err("Failed to allocate SKB");
+-			hdev->stat.err_tx++;
+-			return -ENOMEM;
+-		}
+-
+-		pos = new_skb->data;
+-
+-		pos += pad_len;
+-
+-		/* Populate new SKB */
+-		skb_copy_from_linear_data(skb, pos, skb->len);
+-		skb_put(new_skb, skb->len + pad_len);
+-
+-		/* Replace old SKB */
+-		dev_kfree_skb_any(skb);
+-		skb = new_skb;
+-	} else {
+-		/* Realloc is not needed, Make space for interface header */
+-		skb_push(skb, pad_len);
+-	}
+-
+-	hdr = (struct esp_payload_header *) skb->data;
+-
++	pad_len += SKB_DATA_ADDR_ALIGNMENT -
++		((len + pad_len) % SKB_DATA_ADDR_ALIGNMENT);
++	copy = esp_if_alloc_skb(adapter, len + pad_len);
++	if (!copy) {
++		/* Negative send return leaves the original for HCI core to free. */
++		hdev->stat.err_tx++;
++		return -ENOMEM;
++	}
++	memset(copy->cb, 0, sizeof(copy->cb));
++	hdr = (struct esp_payload_header *)skb_put(copy, len + pad_len);
+ 	memset(hdr, 0, pad_len);
+-
++	if (skb_copy_bits(skb, 0, copy->data + pad_len, len)) {
++		dev_kfree_skb_any(copy);
++		goto drop_original;
++	}
+ 	hdr->if_type = ESP_HCI_IF;
+ 	hdr->if_num = 0;
+ 	hdr->len = cpu_to_le16(len);
+ 	hdr->offset = cpu_to_le16(pad_len);
+-	pos = skb->data;
+-
+-	/* set HCI packet type */
+-	*(pos + pad_len - 1) = pkt_type;
+-
++	copy->data[pad_len - 1] = pkt_type;
+ 	if (adapter->capabilities & ESP_CHECKSUM_ENABLED)
+-		hdr->checksum = cpu_to_le16(compute_checksum(skb->data, (len + pad_len)));
+-
+-	ret = esp_send_packet(adapter, skb);
+-
+-	if (ret) {
++		hdr->checksum = cpu_to_le16(compute_checksum(copy->data, len + pad_len));
++
++	ret = transport_write(adapter, copy);
++	/* No copy/header dereference is allowed after transport ownership. */
++	if (ret)
+ 		hdev->stat.err_tx++;
+-		return ret;
+-	} else {
+-		esp_hci_update_tx_counter(hdev, hdr->hci_pkt_type, skb->len);
+-	}
+-
+-	return 0;
+-}
+-
++	else
++		esp_hci_update_tx_counter(hdev, pkt_type, len + pad_len);
++	dev_kfree_skb_any(skb);
++	return 0;
++
++drop_original:
++	/* A consumed/drop is reported in err_tx, never as a negative send return. */
++	hdev->stat.err_tx++;
++	dev_kfree_skb_any(skb);
++	return 0;
++}
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0))
+ static int esp_bt_setup(struct hci_dev *hdev)
+ {
+@@ -253,6 +221,7 @@
+ 	if (ret < 0) {
+ 		BT_ERR("Can not register HCI device");
+ 		hci_free_dev(hdev);
++		adapter->hcidev = NULL;
+ 		return -ENOMEM;
+ 	}
+ 
+--- a/main.c
++++ b/main.c
+@@ -846,10 +846,14 @@
+ 	} else if (payload_header->if_type == ESP_HCI_IF) {
+ 		/* Folds away without CONFIG_BT: hci_recv_frame() is not built. */
+ 		if (IS_ENABLED(CONFIG_BT) && hdev) {
++			u8 pkt_type;
++			size_t pkt_len;
+ 
+ 			type = skb->data;
+-			hci_skb_pkt_type(skb) = *type;
++			pkt_type = *type;
++			hci_skb_pkt_type(skb) = pkt_type;
+ 			skb_pull(skb, 1);
++			pkt_len = skb->len;
+ 
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0))
+ 			if (hci_recv_frame(hdev, skb)) {
+@@ -858,7 +862,7 @@
+ #endif
+ 				hdev->stat.err_rx++;
+ 			} else {
+-				esp_hci_update_rx_counter(hdev, *type, skb->len);
++				esp_hci_update_rx_counter(hdev, pkt_type, pkt_len);
+ 			}
+ 		}
+ 	} else if (payload_header->if_type == ESP_INTERNAL_IF) {
