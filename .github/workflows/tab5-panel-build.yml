@@ -20,6 +20,11 @@ on:
       - 'linux/tab5/usb-host-boot-symbols.json'
       - 'linux/tab5/microsd-spi.config.fragment'
   workflow_dispatch:
+    inputs:
+      ble:
+        description: 'Experimental BLE HCI and matching ESP-Hosted module'
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -31,6 +36,7 @@ jobs:
       ARCH: riscv
       CROSS_COMPILE: riscv64-linux-gnu-
       KIT_RUN_ID: '39729147095'
+      TAB5_BLE: ${{ inputs.ble == true && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install kernel build dependencies
@@ -111,6 +117,21 @@ jobs:
           subprocess.run(args, check=True)
           Path('artifacts/microsd-required-config.txt').write_text('\n'.join(options) + '\n')
           PY
+          if [ "$TAB5_BLE" = 1 ]; then
+            python3 - <<'PY'
+          import re, subprocess
+          from pathlib import Path
+          args = ['work/linux-custom/scripts/config', '--file', 'work/obj/.config']
+          for line in Path('linux/tab5/bluetooth/kernel.config.fragment').read_text().splitlines():
+              if not line or line.startswith('#'):
+                  continue
+              match = re.fullmatch(r'CONFIG_([A-Z0-9_]+)=([yn])', line)
+              if not match:
+                  raise SystemExit(f'Invalid BLE configuration: {line}')
+              args += ['--enable' if match[2] == 'y' else '--disable', match[1]]
+          subprocess.run(args, check=True)
+          PY
+          fi
           {
             printf 'source_commit=%s\n' "$GITHUB_SHA"
             printf 'baseline_kit_run=%s\n' "$KIT_RUN_ID"
@@ -199,6 +220,29 @@ jobs:
           fi
           make -C work/linux-custom O="$GITHUB_WORKSPACE/work/obj" \
             -j"$(nproc)" Image dtbs 2>&1 | tee artifacts/build.log
+      - name: Build matching experimental BLE SDIO host module
+        if: env.TAB5_BLE == '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for symbol in BT BT_LE UHID; do
+            grep -Fxq "CONFIG_${symbol}=y" work/obj/.config
+          done
+          ! grep -Fxq 'CONFIG_BT_BREDR=y' work/obj/.config
+          git clone --filter=blob:none --no-checkout https://github.com/espressif/esp-hosted.git work/esp-hosted
+          git -C work/esp-hosted checkout 8626b42fd3f9eb5a1ccb5daea481f0d8d32b1685
+          host="$GITHUB_WORKSPACE/work/esp-hosted/esp_hosted_ng/host"
+          find "$host" -type f \( -name '*.c' -o -name '*.h' -o -name Makefile \) -exec sed -i 's/\r$//' {} +
+          for patch_file in linux/buildroot-external/package/esp-hosted-ng/*.patch; do
+            patch --batch --forward -d "$host" -p1 < "$patch_file"
+          done
+          make -C work/linux-custom O="$GITHUB_WORKSPACE/work/obj" \
+            M="$host" target=sdio CONFIG_BT_ENABLED=n CONFIG_ESP_HOSTED_BLE=y \
+            CONFIG_DEBUG_LOGS=n CONFIG_AP_SUPPORT=y modules 2>&1 | tee artifacts/ble-module.log
+          test -s "$host/esp32_sdio.ko"
+          cp "$host/esp32_sdio.ko" artifacts/
+          cp linux/tab5/bluetooth/kernel.config.fragment artifacts/ble.config.fragment
+          sha256sum artifacts/esp32_sdio.ko >> artifacts/build-info.txt
       - name: Verify and package kernel artifacts
         shell: bash
         run: |

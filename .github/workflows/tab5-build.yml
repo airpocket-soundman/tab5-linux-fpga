@@ -33,6 +33,14 @@ on:
         description: 'Experimental microSD via slow GPIO SPI, preserving Wi-Fi'
         type: boolean
         default: false
+      touch:
+        description: 'Experimental touch input and console history'
+        type: boolean
+        default: false
+      ble:
+        description: 'Experimental BLE HCI (pairing helper built separately)'
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -44,6 +52,8 @@ jobs:
       TAB5_LCD_PANEL: ${{ github.event.inputs.lcd_panel || 'st7123' }}
       TAB5_USB_HOST: ${{ github.event.inputs.usb_host == 'true' && '1' || '0' }}
       TAB5_MICROSD_SPI: ${{ github.event.inputs.microsd_spi == 'true' && '1' || '0' }}
+      TAB5_TOUCH: ${{ github.event.inputs.touch == 'true' && '1' || '0' }}
+      TAB5_BLE: ${{ github.event.inputs.ble == 'true' && '1' || '0' }}
       VERSION: ${{ github.event.inputs.version || 'v0.0.1-tab5' }}
       ESP_HOSTED_MCU_REF: ${{ github.event.inputs.esp_hosted_mcu_ref || 'v2.13.0' }}
     steps:

@@ -36,6 +36,9 @@ does not change any image.
 Set EASYSTICK_BOARD=tab5 to build for the M5Stack Tab5: the DTS gets
 linux/dts/tab5-overrides.dtsi appended (the DTB keeps its name).  Build the
 boot shim with the same variable (build-c68.sh passes it through).
+Set TAB5_TOUCH=1 with EASYSTICK_BOARD=tab5 to add the internal ST712x
+touchscreen bus/driver and bounded tty1 glyph scrollback. The default
+keeps both disabled; userspace swipe handling is packaged separately.
 --profile m3-lab reserves 64 KB of PSRAM for ramoops (kernel oops/panic and
 console tail, #26); set EASYSTICK_PSTORE=0 to leave it out.  On hardware the console
 record keeps the panic across both the panic=5 restart and a watchdog reset
@@ -869,6 +872,8 @@ if [[ "${EASYSTICK_BOARD:-stamp-p4}" == tab5 ]]; then
 	patches+=(0078-dwc2-esp32p4-usb20-host-pio.patch)
 	patches+=(0079-spi-gpio-honor-delay.patch)
 	patches+=(0080-physmap-rom-preserve-resource-size.patch)
+	patches+=(0081-input-tab5-st712x-touch.patch)
+	patches+=(0082-tab5-vt-scrollback.patch)
 fi
 for patch_name in "${patches[@]}"; do
 	if [[ "$patch_name" == 0022-esp32p4-systimer-level-trigger.patch ||
@@ -910,6 +915,8 @@ for patch_name in "${patches[@]}"; do
 	      "$patch_name" == 0078-dwc2-esp32p4-usb20-host-pio.patch ||
 	      "$patch_name" == 0079-spi-gpio-honor-delay.patch ||
 	      "$patch_name" == 0080-physmap-rom-preserve-resource-size.patch ||
+	      "$patch_name" == 0081-input-tab5-st712x-touch.patch ||
+	      "$patch_name" == 0082-tab5-vt-scrollback.patch ||
 	      "$patch_name" == 0056-easystick-wdt-stacktrace.patch ||
 	      "$patch_name" == 0055-easystick-sdio-clock-attest.patch ||
 	      "$patch_name" == 0060-easystick-dw-mmc-tx-software-dto.patch ||
@@ -993,6 +1000,10 @@ case "${EASYSTICK_BOARD:-stamp-p4}" in
 		fi
 		if [[ "${TAB5_MICROSD_SPI:-0}" == 1 ]]; then
 			cat -- "${firmware_root}/linux/dts/tab5-microsd-spi.dtsi" \
+				>>"${dts_stage}/espressif/easystick-stamp-p4.dts"
+		fi
+		if [[ "${TAB5_TOUCH:-0}" == 1 ]]; then
+			cat -- "${firmware_root}/linux/dts/tab5-touch.dtsi" \
 				>>"${dts_stage}/espressif/easystick-stamp-p4.dts"
 		fi
 		;;
@@ -1134,12 +1145,19 @@ fi
 if [[ "${EASYSTICK_BOARD:-stamp-p4}" == tab5 && "${TAB5_MICROSD_SPI:-0}" == 1 ]]; then
 	cat "${firmware_root}/linux/tab5/microsd-spi.config.fragment" >>"${kernel_config_fragment}"
 fi
+if [[ "${EASYSTICK_BOARD:-stamp-p4}" == tab5 && "${TAB5_TOUCH:-0}" == 1 ]]; then
+	cat "${firmware_root}/linux/tab5/touch.config.fragment" >>"${kernel_config_fragment}"
+fi
+if [[ "${EASYSTICK_BOARD:-stamp-p4}" == tab5 && "${TAB5_BLE:-0}" == 1 ]]; then
+	cat "${firmware_root}/linux/tab5/bluetooth/kernel.config.fragment" >>"${kernel_config_fragment}"
+fi
 cat >"${dts_stage}/espressif/Makefile" <<'EOF'
 # SPDX-License-Identifier: GPL-2.0-only
 dtb-$(CONFIG_ARCH_ESPRESSIF) += easystick-stamp-p4.dtb
 EOF
 
 make_args=(
+	TAB5_BLE="${TAB5_BLE:-0}"
 	-C "$buildroot_for_make"
 	O="$br_output"
 	BR2_EXTERNAL="$external_root"

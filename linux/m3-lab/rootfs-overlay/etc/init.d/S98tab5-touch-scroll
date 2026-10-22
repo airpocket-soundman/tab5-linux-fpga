@@ -2,13 +2,21 @@
 # Root-only VT control, no key or text injection.
 daemon=/usr/bin/tab5-touch-scroll
 pidfile=/run/tab5-touch-scroll.pid
+running() {
+ [ -f "$pidfile" ] || return 1
+ read -r pid < "$pidfile"
+ case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+ [ "$(readlink "/proc/$pid/exe" 2>/dev/null)" = "$daemon" ]
+}
 case "${1:-start}" in
  start)
   [ -x "$daemon" ] || exit 0
-  start-stop-daemon -S -b -m -p "$pidfile" -x "$daemon" -- x 1 32
+  running && exit 0
+  "$daemon" x 1 32 </dev/null >/dev/null 2>&1 &
+  echo $! > "$pidfile"
   ;;
  stop)
-  start-stop-daemon -K -p "$pidfile" -x "$daemon"
+  if running; then kill "$pid"; fi
   rm -f "$pidfile"
   ;;
  restart) "$0" stop; "$0" start ;;

@@ -40,6 +40,16 @@ static int scroll_lines(int tty, int lines)
 
 int main(int argc, char **argv)
 {
+    if (argc == 3 && !strcmp(argv[1], "--lines")) {
+        char *end;
+        long lines = strtol(argv[2], &end, 10);
+        if (!*argv[2] || *end || lines < -128 || lines > 128 || !lines) return 2;
+        int tty = open("/dev/tty1", O_RDWR | O_CLOEXEC);
+        if (tty < 0) return 1;
+        int result = scroll_lines(tty, (int)lines);
+        close(tty);
+        return result < 0;
+    }
     /* fbcon rotate:1: raw X increases towards screen bottom. */
     int axis = ABS_X, sign = 1, pixels = 32;
     if (argc > 1 && !strcmp(argv[1], "y")) axis = ABS_Y;

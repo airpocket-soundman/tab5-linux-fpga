@@ -11,6 +11,8 @@ Arguments: `tab5-touch-scroll [x|y] [1|-1] [pixels-per-line]`.
 The startup service uses `x 1 32` for the current `fbcon=rotate:1` display.
 Axis and direction need physical swipe verification; they are not inferred
 from a compiled driver. Dragging content down reveals older output.
+`tab5-touch-scroll --lines -5` requests five older rows without touch for
+diagnostics; `--lines 128` returns to the live view.
 
 Kernel patches 0081 (touch input) and 0082 (bounded tty1 history) are both
 required. The history holds 128 complete scrolled-off glyph rows with a
