@@ -1,0 +1,46 @@
+name: project-pages
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/project-status.json'
+      - 'docs/PROJECT_OVERVIEW.md'
+      - 'docs/site/**'
+      - 'tools/build-project-docs.py'
+      - '.github/workflows/project-pages.yml'
+  pull_request:
+    paths:
+      - 'docs/project-status.json'
+      - 'docs/PROJECT_OVERVIEW.md'
+      - 'docs/site/**'
+      - 'tools/build-project-docs.py'
+      - '.github/workflows/project-pages.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: project-pages-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check generated project documents
+        run: python3 tools/build-project-docs.py --check
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/site
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment

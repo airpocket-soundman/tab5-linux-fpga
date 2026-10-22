@@ -9,7 +9,7 @@ name: tab5-build
 on:
   push:
     branches: [main, tab5]
-    paths-ignore: ['**.md', 'docs/**']
+    paths-ignore: ['**.md', 'docs/**', 'tools/build-project-docs.py', '.github/workflows/project-pages.yml']
   workflow_dispatch:
     inputs:
       version:

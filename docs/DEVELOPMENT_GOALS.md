@@ -2,6 +2,8 @@
 
 更新日：2026-10-22
 
+公開向けの全体像は [プロジェクトガイド](PROJECT_OVERVIEW.md)、検証の詳細は [初回起動記録](BRINGUP_2026-10-22.md)、更新手順は [公開ドキュメントの運用](PUBLISHING.md) を参照する。
+
 ## 目的
 
 M5Stack Tab5のNOMMU Linuxを基盤に、Tang Primer 20Kと通信するLinuxドライバとビルド環境を開発する。FPGA側の128MB DDR3を明示的なデータ保存・退避領域として使い、演算オフロードを可能にする。
@@ -23,10 +25,10 @@ Linuxソースを研究リポジトリへ丸ごとコピーせず、このフォ
 
 - フォーク元：[Riti0208/tab5-linux](https://github.com/Riti0208/tab5-linux)。開始コミットは `ac23ca99e1a2f32769dc777f394d29e1f56525ba`。
 - その移植元：[tsuyoshi-otake/m5stamp-p4-c6-linux](https://github.com/tsuyoshi-otake/m5stamp-p4-c6-linux)。Linux更新、SMP、割り込み・障害処理の修正を追跡する。
-- このフォーク独自の実装、ビルド成功、実機動作、転送性能はまだ検証していない。
+- フォークの全体ビルド（`519c095`）とST7121カーネル実験ビルド（`6a2cf3d`）はCIで成功。上流イメージで1コアLinuxとUSBシリアルシェルを実機確認した。ST7121の画面表示は単体ESP-IDFファームで確認し、Linux側の実験実装は実機未検証。FPGA通信と転送性能は未検証。
 - 以下の既存READMEの動作記載は上流による報告であり、このフォークでの検証記録ではない。
 
-上流のTab5版はLinux 6.18系、1コア起動、ST7123液晶、Tab5 Keyboard、Wi-Fi、SSHを対象とする。ILI9881CとST7121の液晶は未対応。詳細は [Tab5移植資料](tab5.md) と [日本語README](../README.ja.md) を参照する。
+上流のTab5版はLinux 6.18系、1コア起動、ST7123液晶、Tab5 Keyboard、Wi-Fi、SSHを対象とする。上流ではILI9881CとST7121の液晶は未対応。このフォークにはST7121の実験実装があるがLinuxでの表示は未検証。詳細は [Tab5移植資料](tab5.md) と [日本語README](../README.ja.md) を参照する。
 
 ## 開発段階と完了条件
 
@@ -61,7 +63,7 @@ P4に通常のMMUがない制約は残る。「FPGA仮想MMU」は研究上の�
 5. 上流との差分を整理し、割り込み・障害処理など必要な修正から評価する。
 6. PARLIOのレジスタ、DMA、ピン制御、Linux側の対応状況を調査し、最小通信を設計する。
 
-ビルド入口は既存の `EASYSTICK_BOARD=tab5 bash linux/build-c68.sh --vendor <out> --profile m3-lab`。依存関係は `versions.lock.json` と `.gitmodules`、CI手順は `.github/workflows/tab5-build.yml` を参照する。Windowsでの開発環境はWSLまたはLinux CIなどから選び、実際に成功した環境を記録する。フォーク作成時点ではサブモジュールの取得やビルドは実行していない。
+ビルド入口は既存の `EASYSTICK_BOARD=tab5 bash linux/build-c68.sh --vendor <out> --profile m3-lab`。依存関係は `versions.lock.json` と `.gitmodules`、CI手順は `.github/workflows/tab5-build.yml` を参照する。Windowsでの開発環境はWSLまたはLinux CIなどから選び、実際に成功した環境を記録する。フォーク作成時点では未ビルドだったが、2026-10-22にLinux全体のCIビルド成功を確認した。成果物の実機起動検証とは区別する。
 
 ## 上流との付き合い方
 

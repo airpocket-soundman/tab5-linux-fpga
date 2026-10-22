@@ -4,7 +4,7 @@
 
 This fork develops Tab5 NOMMU Linux and Linux drivers for communication with a Tang Primer 20K FPGA. The repository is named **tab5-linux-fpga**. Research plans, FPGA logic and evaluation applications live in [esp32p4-linux-fpga-memory](https://github.com/airpocket-soundman/esp32p4-linux-fpga-memory).
 
-Read [開発目的と引き継ぎ](docs/DEVELOPMENT_GOALS.md) first for scope, milestones and the next tasks. This fork has not yet been built or tested on hardware; the original documentation below describes upstream results. The immediate fork source is [Riti0208/tab5-linux](https://github.com/Riti0208/tab5-linux).
+Read [開発目的と引き継ぎ](docs/DEVELOPMENT_GOALS.md) first for scope, milestones and the next tasks. See the [published project guide](https://airpocket-soundman.github.io/tab5-linux-fpga/) or [Markdown guide](docs/PROJECT_OVERVIEW.md) for specifications, plans and progress. Fork CI builds passed; an upstream image booted on one core and a standalone ESP-IDF test displayed on ST7121. Linux ST7121 display and FPGA communication remain unvalidated. The original documentation below describes upstream results. The immediate fork source is [Riti0208/tab5-linux](https://github.com/Riti0208/tab5-linux).
 
 [日本語](README.ja.md)
 
