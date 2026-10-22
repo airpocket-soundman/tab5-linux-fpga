@@ -13,6 +13,12 @@ jobs:
         run: sh tests/static-check.sh
       - name: Boot log checker self-test
         run: python3 linux/tests/test-check-boot-log.py
+      - name: Input protocol and touch recovery checks (no hardware)
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Werror linux/tab5/bluetooth/test-wire.c -o /tmp/ble-wire-test
+          /tmp/ble-wire-test
+          cc -std=c11 -O2 -Wall -Wextra -Werror tools/tab5-console/test-touch-scroll.c -o /tmp/touch-scroll-test
+          /tmp/touch-scroll-test
       - name: FPGA link mock and protocol checks (no hardware)
         run: |
           python3 -m unittest discover -s tools/fpga-link -p test_fpga_link.py -v

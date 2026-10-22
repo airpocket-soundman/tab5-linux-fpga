@@ -39,6 +39,8 @@ jobs:
           sdk/host/relocate-sdk.sh
           gcc -std=c11 -O2 -Wall -Wextra -Werror linux/tab5/bluetooth/test-wire.c -o /tmp/ble-wire-test
           /tmp/ble-wire-test | tee artifacts/ble-wire-test.log
+          gcc -std=c11 -O2 -Wall -Wextra -Werror tools/tab5-console/test-touch-scroll.c -o /tmp/touch-scroll-test
+          /tmp/touch-scroll-test | tee artifacts/touch-scroll-test.log
           bash linux/tab5/bluetooth/build.sh sdk/host artifacts
           sdk/host/bin/riscv32-buildroot-linux-uclibc-gcc \
             -std=c11 -Wall -Wextra -Werror -Os -fPIC -static \
