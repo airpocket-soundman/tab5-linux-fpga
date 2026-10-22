@@ -229,6 +229,11 @@ jobs:
             grep -Fxq "CONFIG_${symbol}=y" work/obj/.config
           done
           ! grep -Fxq 'CONFIG_BT_BREDR=y' work/obj/.config
+          # Image alone writes vmlinux.symvers; external module modpost needs
+          # the complete Module.symvers produced by the in-tree modules target.
+          make -C work/linux-custom O="$GITHUB_WORKSPACE/work/obj" \
+            -j"$(nproc)" modules 2>&1 | tee artifacts/kernel-modules.log
+          test -s work/obj/Module.symvers
           git clone --filter=blob:none --no-checkout https://github.com/espressif/esp-hosted.git work/esp-hosted
           git -C work/esp-hosted checkout 8626b42fd3f9eb5a1ccb5daea481f0d8d32b1685
           host="$GITHUB_WORKSPACE/work/esp-hosted/esp_hosted_ng/host"
