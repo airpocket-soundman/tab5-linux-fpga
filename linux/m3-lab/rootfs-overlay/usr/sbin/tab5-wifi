@@ -1,0 +1,92 @@
+#!/bin/sh
+# Configure the existing S40network/bootsync workflow without exposing a PSK.
+# BusyBox NOMMU ash has no set -u.
+set -e
+umask 077
+BOOT=${TAB5_WIFI_BOOT_DIR:-/boot}
+CFG=$BOOT/config.txt
+TEMP=
+TTY_STATE=
+tty_mode() {
+ # The main BusyBox omits stty; busybox-tools supplies it in m3-lab.
+ /bin/busybox-tools stty "$@"
+}
+cleanup() {
+ rc=$?
+ trap - EXIT HUP INT TERM
+ if [ -n "$TTY_STATE" ]; then tty_mode "$TTY_STATE" || true; fi
+ [ -z "$TEMP" ] || rm -f "$TEMP"
+ exit "$rc"
+}
+trap cleanup EXIT
+trap 'exit 130' HUP INT TERM
+fail() { echo "$1" >&2; exit 1; }
+valid_text() {
+ case "$1" in
+  *'"'*|*'\'*|*"$(printf '\r')"*|*'
+'*) return 1 ;;
+ esac
+}
+write_config() {
+ [ -f "$CFG" ] && [ -w "$CFG" ] || fail 'Writable /boot/config.txt is required.'
+ TEMP=$(mktemp "$BOOT/.wifi-XXXXXX")
+ # Match S40's BOM/CRLF/whitespace handling, remove every old Wi-Fi key.
+ bom=$(printf '\357\273\277')
+ cr=$(printf '\r')
+ sed -e "1s/^$bom//" -e "s/$cr\$//" \
+  -e '/^[[:blank:]]*wifi_mode[[:blank:]]*=/d' \
+  -e '/^[[:blank:]]*wifi_ssid[[:blank:]]*=/d' \
+  -e '/^[[:blank:]]*wifi_psk[[:blank:]]*=/d' \
+  -e '/^[[:blank:]]*country[[:blank:]]*=/d' "$CFG" > "$TEMP"
+ {
+  printf '\nwifi_mode=%s\n' "$MODE"
+  if [ "$MODE" = sta ]; then
+   printf 'wifi_ssid="%s"\nwifi_psk="%s"\n' "$SSID" "$PSK"
+   [ -z "$COUNTRY" ] || printf 'country=%s\n' "$COUNTRY"
+  fi
+ } >> "$TEMP"
+ mv -f "$TEMP" "$CFG"
+ TEMP=
+ sync
+ echo 'Wi-Fi settings updated. Automatic saving and reconnection may disconnect this session.'
+ echo 'Check bootsync for Saved to flash; staged settings may trigger a restart.'
+}
+case "${1:-status}" in
+ status)
+  ifconfig wlan0 2>/dev/null || true
+  iw dev wlan0 link 2>/dev/null || true
+  [ ! -r /run/easystick-status.txt ] || cat /run/easystick-status.txt
+  ;;
+ sta)
+  [ -t 0 ] || fail 'Run tab5-wifi sta from an interactive terminal.'
+  printf 'SSID: '
+  IFS= read -r SSID || exit 1
+  [ -n "$SSID" ] && [ "${#SSID}" -le 32 ] || fail 'SSID must be 1-32 bytes.'
+  valid_text "$SSID" || fail 'SSID cannot contain quotes, backslashes or line breaks.'
+  TTY_STATE=$(tty_mode -g) || fail 'Cannot hide password input.'
+  tty_mode -echo
+  printf 'Wi-Fi password (empty for an open network): '
+  IFS= read -r PSK || exit 1
+  tty_mode "$TTY_STATE"
+  TTY_STATE=
+  printf '\n'
+  valid_text "$PSK" || fail 'Password cannot contain quotes, backslashes or line breaks.'
+  [ -z "$PSK" ] || { [ "${#PSK}" -ge 8 ] && [ "${#PSK}" -le 63 ]; } || fail 'Password must be empty or 8-63 characters.'
+  printf 'Country (two uppercase letters, e.g. JP; empty for world): '
+  IFS= read -r COUNTRY || exit 1
+  case "$COUNTRY" in ''|[A-Z][A-Z]) ;; *) fail 'Country must be two uppercase letters.' ;; esac
+  MODE=sta
+  write_config
+  unset PSK
+  ;;
+ ap)
+  # STA setup changes only config.txt, leaving the generated AP file intact.
+  if ! grep -q '^[[:space:]]*mode=2' "$BOOT/wpa_supplicant.conf" 2>/dev/null; then
+   fail 'Saved AP configuration is missing. Restore /boot/wpa_supplicant.conf before switching to AP.'
+  fi
+  MODE=ap
+  write_config
+  echo 'Using the saved AP credentials from the boot configuration.'
+  ;;
+ *) echo 'Usage: tab5-wifi {status|sta|ap}' >&2; exit 1 ;;
+esac

@@ -20,12 +20,14 @@ rm -f "${TARGET_DIR}/etc/init.d/S10easystick-config"
 rm -f "${TARGET_DIR}/usr/bin/getconf"
 
 for path in \
+	"${TARGET_DIR}/etc/init.d/S03loopback" \
 	"${TARGET_DIR}/etc/init.d/S05easystick-tmpfs" \
 	"${TARGET_DIR}/etc/init.d/S40network" \
 	"${TARGET_DIR}/etc/init.d/S45bootsync" \
 	"${TARGET_DIR}/etc/init.d/S85easystick-ssh" \
 	"${TARGET_DIR}/etc/init.d/S90easystick-watchdog" \
 	"${TARGET_DIR}/usr/sbin/easystick-bootsync" \
+	"${TARGET_DIR}/usr/sbin/tab5-wifi" \
 	"${TARGET_DIR}/usr/sbin/easystick-usb-lun" \
 	"${TARGET_DIR}/usr/sbin/easystick-watchdog" \
 	"${TARGET_DIR}/usr/sbin/easystick-update-status" \
@@ -38,6 +40,8 @@ for path in \
 	fi
 done
 
+chmod 0755 "${TARGET_DIR}/etc/init.d/S03loopback"
+chmod 0755 "${TARGET_DIR}/usr/sbin/tab5-wifi"
 chmod 0755 "${TARGET_DIR}/etc/init.d/S05easystick-tmpfs"
 chmod 0755 "${TARGET_DIR}/etc/init.d/S40network"
 chmod 0755 "${TARGET_DIR}/etc/init.d/S45bootsync"

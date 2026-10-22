@@ -1,0 +1,61 @@
+name: tab5-rootfs-tools
+on:
+  push:
+    branches: [codex/st7121-display]
+    paths:
+      - '.github/workflows/tab5-rootfs-tools.yml'
+      - 'linux/m3-lab/rootfs-overlay/etc/init.d/S03loopback'
+      - 'linux/m3-lab/rootfs-overlay/usr/sbin/tab5-wifi'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  rootfs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends squashfs-tools
+      - uses: actions/download-artifact@v4
+        with:
+          name: tab5-assets
+          run-id: '39729147095'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: baseline
+      - name: Verify and extract baseline root filesystem
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          from zipfile import ZipFile
+          folder = Path('baseline')
+          name = 'm5stamp-p4-c6-linux-smp-v0.0.1.zip'
+          expected = dict(line.split(maxsplit=1)[::-1] for line in (folder/'SHA256SUMS.txt').read_text().splitlines())
+          assert hashlib.sha256((folder/name).read_bytes()).hexdigest() == expected[name]
+          with ZipFile(folder/name) as archive:
+              hashes = dict(line.split(maxsplit=1)[::-1] for line in archive.read('SHA256SUMS.txt').decode().splitlines())
+              image = archive.read('rootfs.squashfs')
+              assert hashlib.sha256(image).hexdigest() == hashes['rootfs.squashfs']
+              (folder/'rootfs.squashfs').write_bytes(image)
+          PY
+          sudo unsquashfs -d rootfs baseline/rootfs.squashfs
+      - name: Install network helpers and retain LZ4 format
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          sudo install -o 0 -g 0 -m 755 linux/m3-lab/rootfs-overlay/etc/init.d/S03loopback rootfs/etc/init.d/S03loopback
+          sudo install -o 0 -g 0 -m 755 linux/m3-lab/rootfs-overlay/usr/sbin/tab5-wifi rootfs/usr/sbin/tab5-wifi
+          sudo mksquashfs rootfs artifacts/rootfs.squashfs -noappend -comp lz4 -b 131072 -Xhc
+          test "$(stat -c %s artifacts/rootfs.squashfs)" -le $((0x700000))
+          unsquashfs -s artifacts/rootfs.squashfs | tee artifacts/rootfs-info.txt
+          grep -q 'Compression lz4' artifacts/rootfs-info.txt
+          unsquashfs -cat artifacts/rootfs.squashfs etc/init.d/S03loopback | cmp - linux/m3-lab/rootfs-overlay/etc/init.d/S03loopback
+          unsquashfs -cat artifacts/rootfs.squashfs usr/sbin/tab5-wifi | cmp - linux/m3-lab/rootfs-overlay/usr/sbin/tab5-wifi
+          printf 'source_commit=%s\nbaseline_run=39729147095\nrootfs_offset=0x810000\n' "$GITHUB_SHA" > artifacts/build-info.txt
+          (cd artifacts && sha256sum rootfs.squashfs > SHA256SUMS.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tab5-network-rootfs
+          path: artifacts/

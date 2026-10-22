@@ -1,0 +1,7 @@
+#!/bin/sh
+# Loopback is required for local SSH and ordinary localhost applications.
+case "${1:-start}" in
+ start|restart) ifconfig lo 127.0.0.1 netmask 255.0.0.0 up ;;
+ stop) : ;;
+ *) echo "Usage: $0 {start|stop|restart}" >&2; exit 1 ;;
+esac
