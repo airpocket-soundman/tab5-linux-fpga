@@ -6,6 +6,8 @@ This fork develops Tab5 NOMMU Linux and Linux drivers for communication with a T
 
 Read [開発目的と引き継ぎ](docs/DEVELOPMENT_GOALS.md) first for scope, milestones and the next tasks. On 2026-10-22 this fork verified ST7121 display output, one-core Linux boot, the USB serial shell, Wi-Fi SoftAP/STA connectivity, SSH key-authenticated login from a PC, and detection and writes on a 16GB FAT32 microSD card. See [the bring-up record](docs/BRINGUP_2026-10-22.md) for exact builds and unverified items. USB-A keyboard support is experimental; physical keyboard input has not been tested. The original documentation below describes upstream results. The immediate fork source is [Riti0208/tab5-linux](https://github.com/Riti0208/tab5-linux).
 
+Vim/nano editing and SD save/readback, plus sl screen updates and normal exit, are now verified. See [terminal usage and limits](docs/TERMINAL_APPLICATIONS.md). The [FPGA mock preparation](docs/FPGA_LINK_PREPARATION.md) also passes 513 C mock transactions on Tab5; no physical FPGA link has been tested.
+
 [日本語](README.ja.md)
 
 Native RISC-V NOMMU Linux 6.18 on the **M5Stack Tab5** (ESP32-P4 + ESP32-C6):

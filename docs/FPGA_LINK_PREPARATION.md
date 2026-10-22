@@ -6,7 +6,7 @@
 
 `tools/fpga-link/` に、低速接続試験v0のPython codec、バイト列transport抽象、mock endpoint、CLI、テストを追加した。対象はPC上のCPythonまたはCPythonが利用できるLinux環境である。追加Pythonパッケージは不要。
 
-Tab5上では実行していない。Tab5のMicroPythonとの互換性は確認していない。GPIO、シリアル、PARLIO、DMA、IRQ、FPGA、DDR3へアクセスするbackendは実装していない。CLIは`--mock`を必須とし、結果にも`physical_link_tested: false`を表示する。
+Python版はTab5上では実行していない。C版は後述のとおりTab5上でもmockを実行した。Tab5のMicroPythonとの互換性は確認していない。GPIO、シリアル、PARLIO、DMA、IRQ、FPGA、DDR3へアクセスするbackendは実装していない。CLIは`--mock`を必須とし、結果にも`physical_link_tested: false`を表示する。
 
 このv0はID・echo・bit反転による接続試験用である。128MB DDR3のREAD/WRITE/COPY/FILL、Linuxドライバの`/dev/` ABI、可変長パケット、CRC32の仕様は未確定で、本実装では追加していない。
 
@@ -114,7 +114,7 @@ python tools/fpga-link/run_c_cli.py --cc D:/tmp/tab5-test-tools/ziglang/zig.exe 
 
 `-std=c11 -O2 -Wall -Wextra -Werror`のコンパイルが成功し、C CLIの全583ベクタの応答と受理判定が、golden vectorsと独立Python実装の両方に一致した。CLIのid/echo/invertの3例、513要求selftest、不正引数・範囲外・不正hex・過大入力の14例の拒否も成功した。SOURCE.json、vendor header、golden vectorsはこの追加で変更していない。
 
-C CLIはホストでの実行確認まで。Tab5用RV32/uClibcクロスビルドとTab5上のmock実行・メモリ使用確認は未実施であり、SDK準備後の次作業とする。C CLIもGPIO/COM/FPGA/DDR3へ一切アクセスしない。
+C CLIはRV32IMAC/ILP32/uClibc static bFLTへクロスビルドし、Tab5上の`fpga-link --mock selftest`でも513要求の成功を確認した（CI39761292328/source0493c7a、83,548bytes、stack32KiB）。`physical_link_tested:false`のままであり、物理通信・DDR3は未検証。メモリ使用量の詳細測定も未実施。C CLIもGPIO/COM/FPGA/DDR3へ一切アクセスしない。
 
 ## GPIOと次の作業
 
@@ -122,6 +122,6 @@ C CLIはホストでの実行確認まで。Tab5用RV32/uClibcクロスビルド
 
 ただしBSPヘッダの`BSP_USB_NEG=GPIO19`と暫定D1=19には記述上の疑義がある。現在のUSB20はUTMI専用経路であり、ヘッダ定義だけで実電気的競合の有無を確定できない。キャリア・Tab5回路図のネット照合、GPIO行列、起動状態、I/O電圧、電源断時Hi-Zと逆給電を引き続き確認する。GPIOを動かす実装はこの確認後の別段階とする。
 
-次の作業は、上流ファイルの利用条件明文化、FPGA側RTLを同じベクタでシミュレーション、キャリアのネットと電気仕様確認、実基板用top/制約作成、その後の低速ID/パターン往復試験。Linuxへの移植では、まずGPIOを操作しない同じcodecのC実行形式をクロスビルドし、実機メモリ負荷を確認する方法も選べる。
+次の作業は、上流ファイルの利用条件明文化、FPGA側RTLを同じベクタでシミュレーション、キャリアのネットと電気仕様確認、実基板用top/制約作成、その後の低速ID/パターン往復試験。C実行形式のクロスビルドとTab5でのmock実行は完了したため、次は実機メモリ負荷の測定と、実基板の到着後に接続backendの検証を行う。
 
 DDR3用APIを進める場合は別の提案書でaddress、transfer length、payload length、要求ID、エラー応答、重複要求、CRC、最大分割サイズを定義する。128MBをP4側に一括確保せず、少量バッファで分割し、`length <= capacity - address`による範囲検査とmock backendから検証する。現v0に正式メモリ操作opcodeを割り当てたものとして扱わない。
