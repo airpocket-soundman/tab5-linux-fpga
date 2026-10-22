@@ -757,6 +757,9 @@ void app_main(void)
 #else
 	/* The panel's DSI init runs in Linux; it only needs reset and light. */
 	tab5_lcd_power_on();
+#ifdef EASYSTICK_TAB5_MICROSD_SPI
+	tab5_microsd_spi_prepare();
+#endif
 #ifdef EASYSTICK_TAB5_USB_HOST
 	if (tab5_usb_host_power_on())
 		tab5_usb_hs_phy_init();

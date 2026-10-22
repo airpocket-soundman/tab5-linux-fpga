@@ -30,6 +30,13 @@
 
 #include "tab5_power.h"
 
+#ifdef EASYSTICK_TAB5_MICROSD_SPI
+#include "esp_ldo_regulator.h"
+
+/* Keep the regulator acquired across the Linux handoff; do not release it. */
+static esp_ldo_channel_handle_t tab5_sd_ldo;
+#endif
+
 static const char *TAG = "tab5-power";
 
 #define TAB5_I2C_SDA GPIO_NUM_31
@@ -273,3 +280,49 @@ bool tab5_usb_host_power_on(void)
 		 PI4IO_ADDR_PWR);
 	return true;
 }
+
+#ifdef EASYSTICK_TAB5_MICROSD_SPI
+bool tab5_microsd_spi_prepare(void)
+{
+	/* Tab5 BSP: CLK43, CMD/MOSI44, DAT0/MISO39, DAT3/CS42. */
+	const gpio_num_t pins[] = {
+		GPIO_NUM_43, GPIO_NUM_44, GPIO_NUM_39, GPIO_NUM_42,
+	};
+	for (unsigned i = 0; i < sizeof(pins) / sizeof(pins[0]); ++i) {
+		if (gpio_reset_pin(pins[i]) != ESP_OK) {
+			ESP_LOGE(TAG, "microSD GPIO reset failed");
+			return false;
+		}
+		/* Preload safe latches without enabling an output. Linux owns SPI. */
+		gpio_set_level(pins[i], pins[i] == GPIO_NUM_43 ? 0 : 1);
+	}
+	const gpio_config_t cfg = {
+		.pin_bit_mask = (1ull << 43) | (1ull << 44) |
+				(1ull << 39) | (1ull << 42),
+		.mode = GPIO_MODE_INPUT,
+		.pull_up_en = GPIO_PULLUP_ENABLE,
+		.pull_down_en = GPIO_PULLDOWN_DISABLE,
+		.intr_type = GPIO_INTR_DISABLE,
+	};
+	/* gpio_config selects PIN_FUNC_GPIO, disconnecting SDMMC IOMUX. */
+	if (gpio_config(&cfg) != ESP_OK) {
+		ESP_LOGE(TAG, "microSD GPIO input configuration failed");
+		return false;
+	}
+	/* Idle CS/CMD high; idle clock low. No command or clock is sent here. */
+	gpio_pullup_dis(GPIO_NUM_43);
+	gpio_pulldown_en(GPIO_NUM_43);
+	const esp_ldo_channel_config_t ldo = {
+		.chan_id = 4,
+		.voltage_mv = 3300,
+	};
+	esp_err_t err = esp_ldo_acquire_channel(&ldo, &tab5_sd_ldo);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "microSD LDO4 acquisition failed: %s", esp_err_to_name(err));
+		return false;
+	}
+	esp_rom_delay_us(10000);
+	ESP_LOGI(TAG, "microSD SPI prepared: LDO4=3300mV, GPIO43/44/39/42 inputs");
+	return true;
+}
+#endif

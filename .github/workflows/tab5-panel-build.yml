@@ -9,8 +9,11 @@ on:
       - '.github/workflows/tab5-panel-build.yml'
       - 'linux/kernel-patches/0077-drm-panel-sitronix-st7121.patch'
       - 'linux/kernel-patches/0078-dwc2-esp32p4-usb20-host-pio.patch'
+      - 'linux/kernel-patches/0079-spi-gpio-honor-delay.patch'
       - 'linux/dts/tab5-usb-host.dtsi'
+      - 'linux/dts/tab5-microsd-spi.dtsi'
       - 'linux/tab5/usb-host-boot-symbols.json'
+      - 'linux/tab5/microsd-spi.config.fragment'
   workflow_dispatch:
 permissions:
   contents: read
@@ -38,7 +41,7 @@ jobs:
           run-id: ${{ env.KIT_RUN_ID }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: kit
-      - name: Prepare ST7121 and USB host kernel and device tree
+      - name: Prepare ST7121, USB host and microSD kernel and device tree
         shell: bash
         run: |
           set -euo pipefail
@@ -50,6 +53,8 @@ jobs:
             < linux/kernel-patches/0077-drm-panel-sitronix-st7121.patch
           patch --batch --forward -d work/linux-custom -p1 \
             < linux/kernel-patches/0078-dwc2-esp32p4-usb20-host-pio.patch
+          patch --batch --forward -d work/linux-custom -p1 \
+            < linux/kernel-patches/0079-spi-gpio-honor-delay.patch
           python3 - <<'PY'
           from pathlib import Path
           path = Path('work/linux-custom/arch/riscv/boot/dts/espressif/easystick-stamp-p4.dts')
@@ -61,10 +66,35 @@ jobs:
           PY
           cat linux/dts/tab5-usb-host.dtsi \
             >> work/linux-custom/arch/riscv/boot/dts/espressif/easystick-stamp-p4.dts
+          cat linux/dts/tab5-microsd-spi.dtsi \
+            >> work/linux-custom/arch/riscv/boot/dts/espressif/easystick-stamp-p4.dts
           work/linux-custom/scripts/config --file work/obj/.config \
             --enable USB --enable HID_SUPPORT --enable HID --enable HID_GENERIC \
             --enable USB_HID --enable USB_DWC2_HOST \
             --disable USB_DWC2_PERIPHERAL --disable USB_DWC2_DUAL_ROLE
+          python3 - <<'PY'
+          import re
+          import subprocess
+          from pathlib import Path
+
+          fragment = Path('linux/tab5/microsd-spi.config.fragment')
+          options = []
+          for line in fragment.read_text().splitlines():
+              line = line.strip()
+              if not line or line.startswith('#'):
+                  continue
+              match = re.fullmatch(r'CONFIG_([A-Z0-9_]+)=y', line)
+              if not match:
+                  raise SystemExit(f'Unsupported microSD config line: {line}')
+              options.append(match[1])
+          if not options or len(options) != len(set(options)):
+              raise SystemExit('microSD config must contain unique enabled symbols')
+          args = ['work/linux-custom/scripts/config', '--file', 'work/obj/.config']
+          for option in options:
+              args.extend(['--enable', option])
+          subprocess.run(args, check=True)
+          Path('artifacts/microsd-required-config.txt').write_text('\n'.join(options) + '\n')
+          PY
           {
             printf 'source_commit=%s\n' "$GITHUB_SHA"
             printf 'baseline_kit_run=%s\n' "$KIT_RUN_ID"
@@ -75,7 +105,9 @@ jobs:
             sha256sum kit/kernel.config kit/linux-tree.tar.zst \
               linux/kernel-patches/0077-drm-panel-sitronix-st7121.patch \
               linux/kernel-patches/0078-dwc2-esp32p4-usb20-host-pio.patch \
-              linux/dts/tab5-usb-host.dtsi
+              linux/kernel-patches/0079-spi-gpio-honor-delay.patch \
+              linux/dts/tab5-usb-host.dtsi linux/dts/tab5-microsd-spi.dtsi \
+              linux/tab5/microsd-spi.config.fragment
           } > artifacts/build-info.txt
       - name: Match kernel C68 addresses to USB host boot shim
         shell: bash
@@ -135,6 +167,12 @@ jobs:
               exit 1
             }
           done
+          while IFS= read -r option; do
+            grep -Fxq "CONFIG_${option}=y" work/obj/.config || {
+              echo "Required microSD option was disabled: $option" >&2
+              exit 1
+            }
+          done < artifacts/microsd-required-config.txt
           if grep -Eq '^CONFIG_USB_DWC2_(PERIPHERAL|DUAL_ROLE)=y$' work/obj/.config; then
             echo 'DWC2 must use host-only mode for this experiment' >&2
             exit 1
@@ -156,17 +194,24 @@ jobs:
           dtc -I dtb -O dts "$dtb" -o artifacts/easystick-stamp-p4.dts
           grep -Fq 'sitronix,st7121' artifacts/easystick-stamp-p4.dts
           grep -Fq 'espressif,esp32p4-otg20' artifacts/easystick-stamp-p4.dts
+          grep -Fq 'mmc-spi-slot' artifacts/easystick-stamp-p4.dts
+          grep -Fq 'spi-gpio' artifacts/easystick-stamp-p4.dts
           cp "$image" artifacts/Image
           cp "$dtb" artifacts/easystick-stamp-p4.dtb
           cp work/obj/.config artifacts/kernel.config
           cp linux/kernel-patches/0077-drm-panel-sitronix-st7121.patch artifacts/
           cp linux/kernel-patches/0078-dwc2-esp32p4-usb20-host-pio.patch artifacts/
+          cp linux/kernel-patches/0079-spi-gpio-honor-delay.patch artifacts/
           cp linux/dts/tab5-usb-host.dtsi artifacts/
+          cp linux/dts/tab5-microsd-spi.dtsi artifacts/
+          cp linux/tab5/microsd-spi.config.fragment artifacts/
           printf 'Image_bytes=%s\nDTB_bytes=%s\n' "$image_size" "$dtb_size" \
             >> artifacts/build-info.txt
           (cd artifacts && sha256sum Image easystick-stamp-p4.dtb kernel.config \
             0077-drm-panel-sitronix-st7121.patch \
-            0078-dwc2-esp32p4-usb20-host-pio.patch tab5-usb-host.dtsi \
+            0078-dwc2-esp32p4-usb20-host-pio.patch \
+            0079-spi-gpio-honor-delay.patch tab5-usb-host.dtsi tab5-microsd-spi.dtsi \
+            microsd-spi.config.fragment microsd-required-config.txt \
             usb-host-boot-symbols.json > SHA256SUMS.txt)
           cat artifacts/SHA256SUMS.txt
       - name: Upload kernel and diagnostic logs

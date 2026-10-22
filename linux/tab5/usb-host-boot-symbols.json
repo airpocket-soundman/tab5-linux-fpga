@@ -1,11 +1,12 @@
 {
   "new_release": "0x4ff14320",
   "new_stage": "0x4ff1431c",
-  "elf_sha256": "eb1b139329b739a46cc528f8c55567271f3b808fbee175633677193eda876e57",
-  "boot_bin_sha256": "92473e84a7532da21250a7d7bff35694288fe38b055d974dd4b1b0e00a40644d",
+  "elf_sha256": "aaeb0230e2056d87fa946ba4ba64aff65b2b5952188bf1d7d1a6c4c08ef98347",
+  "boot_bin_sha256": "8411d4075ae0a819a511ee8424b1bc4d387c306fd66f90165c4d9fbde4fa7e97",
   "old_release": "0x4ff13f1c",
   "old_stage": "0x4ff13f18",
   "idf_version": "5.5.5",
   "toolchain": "esp-14.2.0_20260121",
-  "local_source_tag": "6a2cf3d-usb-host-local"
+  "local_source_tag": "48ac072-sd-spi-local",
+  "microsd_spi": true
 }

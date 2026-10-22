@@ -1,0 +1,47 @@
+From: Tab5 Linux FPGA maintainers
+Subject: [PATCH] spi: gpio: honor the bitbang half-period delay
+
+spi-gpio currently ignores spi-bitbang's nsecs argument and clocks as
+fast as GPIO accesses allow. That may exceed an SD card's 400 kHz
+initialization limit on a fast CPU. Use a busy nanosecond delay for
+each half-cycle, as the generic bitbang loops request.
+
+spi_bitbang_setup_transfer() computes nsecs = (NSEC_PER_SEC / 2) / hz;
+400000 Hz therefore gives exactly 1250 ns for each half-period. GPIO
+access and preemption add time instead of intentionally omitting the
+delay. This is a configured timing bound, not a measured wire speed.
+
+This changes every spi-gpio controller in this kernel; it lowers their
+throughput to respect requested rates. Tab5 currently has only the new
+microSD GPIO SPI controller. No sleep, IRQ masking or DMA is introduced.
+
+diff --git a/drivers/spi/spi-gpio.c b/drivers/spi/spi-gpio.c
+--- a/drivers/spi/spi-gpio.c
++++ b/drivers/spi/spi-gpio.c
+@@ -5,6 +5,7 @@
+  * Copyright (C) 2006,2008 David Brownell
+  * Copyright (C) 2017 Linus Walleij
+  */
++#include <linux/delay.h>
+ #include <linux/gpio/consumer.h>
+ #include <linux/kernel.h>
+ #include <linux/mod_devicetable.h>
+@@ -80,12 +81,12 @@
+ }
+ 
+ /*
+- * NOTE:  this clocks "as fast as we can".  It "should" be a function of the
+- * requested device clock.  Software overhead means we usually have trouble
+- * reaching even one Mbit/sec (except when we can inline bitops), so for now
+- * we'll just assume we never need additional per-bit slowdowns.
+- */
+-#define spidelay(nsecs)	do {} while (0)
++ * Honor spi-bitbang's requested half-period. GPIO access adds overhead,
++ * so the effective clock can be slower than the requested frequency.
++ * In particular, MMC/SD SPI initialization must not run flat out when
++ * the device limits its clock to 400 kHz.
++ */
++#define spidelay(nsecs)	ndelay(nsecs)
+ 
+ #include "spi-bitbang-txrx.h"
+ 

@@ -17,6 +17,10 @@ Set TAB5_USB_HOST=1 with EASYSTICK_BOARD=tab5 to enable USB-A VBUS and
 initialize the USB 2.0 UTMI PHY before Linux takes over the host controller.
 The default build leaves USB-A host initialization disabled.
 
+Set TAB5_MICROSD_SPI=1 with EASYSTICK_BOARD=tab5 to supply the microSD
+socket from LDO4 at 3.3 V and leave GPIO43/44/39/42 ready for Linux spi-gpio.
+The shim does not initialize, mount or format the card.
+
 Set EASYSTICK_TSENS_ORACLE=1 for an explicit C68-only ESP32-P4 LP-TSENS
 reference build. It emits one P4_TSENS_REF PASS line, then disables the
 sensor and its internal REGI2C path before handing off to Linux.

@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Experimental Tab5 microSD via GPIO SPI; independent of the shared
+ * SDMMC controller used by C6 Wi-Fi. Append after the Tab5 overrides.
+ * The matching boot shim must retain LDO4 at 3.3 V and configure the
+ * GPIO39/42/43/44 matrix for GPIO before Linux takes ownership.
+ */
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	microsd_spi: spi-microsd {
+		compatible = "spi-gpio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		num-chipselects = <1>;
+
+		/* gpio1 offsets are physical GPIO numbers minus 32. */
+		sck-gpios = <&gpio1 11 GPIO_ACTIVE_HIGH>;  /* GPIO43 */
+		mosi-gpios = <&gpio1 12 GPIO_ACTIVE_HIGH>; /* GPIO44 */
+		miso-gpios = <&gpio1 7 GPIO_ACTIVE_HIGH>;  /* GPIO39 */
+		/* Active low, with no spi-cs-high property on the card. */
+		cs-gpios = <&gpio1 10 GPIO_ACTIVE_LOW>;    /* GPIO42 */
+		status = "okay";
+
+		microsd: mmc@0 {
+			compatible = "mmc-spi-slot";
+			reg = <0>;
+			spi-max-frequency = <400000>;
+			voltage-ranges = <3300 3300>;
+			no-1-8-v;
+			/* No card-detect IRQ: of_mmc_spi enables polling. */
+		};
+	};
+};
