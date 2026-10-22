@@ -13,3 +13,8 @@ jobs:
         run: sh tests/static-check.sh
       - name: Boot log checker self-test
         run: python3 linux/tests/test-check-boot-log.py
+      - name: FPGA link mock and protocol checks (no hardware)
+        run: |
+          python3 -m unittest discover -s tools/fpga-link -p test_fpga_link.py -v
+          python3 tools/fpga-link/fpga_link.py --mock --fragment-size 1 selftest
+          python3 tools/fpga-link/run_c_codec.py --cc cc

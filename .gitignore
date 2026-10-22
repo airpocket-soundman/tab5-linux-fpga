@@ -43,3 +43,7 @@ Image
 *.elf
 *.tar.gz
 *.tar.xz
+
+# Standalone terminal application build and SDK outputs
+/work/
+/artifacts/
