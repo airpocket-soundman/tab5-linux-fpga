@@ -9,7 +9,8 @@
 Vim・nanoの編集とmicroSD保存、SLの実行も確認済みです。[使い方と機能制限](docs/TERMINAL_APPLICATIONS.md)を参照してください。FPGA向けには[基板なしのmock試験](docs/FPGA_LINK_PREPARATION.md)を追加し、C版はTab5でも513要求を確認しました。物理通信は未検証です。
 
 タッチ入力・128行のコンソール履歴・NOMMU用BLEキーボードホストを実験実装しました。
-入力処理の自動テストと実行ファイルのビルドは成功し、実機での入力確認は準備中です。
+入力処理の自動テストとビルドは成功し、実機で指の上下スクロールと履歴表示・復帰を確認しました。
+BTはコントローラ認識まで確認し、ペアリング・キー入力は未検証です。
 進捗と制限は[タッチとBluetoothの記録](docs/TOUCH_AND_BLUETOOTH.md)を参照してください。
 
 [English](README.md)

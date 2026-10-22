@@ -52,7 +52,7 @@ Vimの実際の`[New]`表示に合わせて判定を訂正し、E1187等の起�
 実機tty1へ200行を出力し、helperで128行さかのぼってfb0のhash変化を確認。
 同時にvcs1のhashは不変、通常画面へ戻すとfb0/vcs1とも元のhashへ一致した。
 これは履歴がlive文字データを上書きしないことの確認で、指操作の確認とは別。
-実際の上下スワイプ・軸・向きはユーザー確認待ち。
+実際の上下スワイプもユーザーが「上下スクロールできる」と確認した。
 ログはローカルoutのinput-boot-safe.log/input-console-smoke.json/
 input-terminal-results.json。古いカーネルでは履歴機能がないため、新しいhelper
 だけを入れても履歴は増えない。
@@ -85,6 +85,16 @@ BT対応済みとは扱わない。ペアリングモードはテスト準備が
 とくに0030/0031は未renderedアドレスを使う実験テンプレートで、通常版へ
 無条件に適用してはいけない。Ubuntuのコンパイラ配布が低速だったため、
 同じパッケージを主archive mirrorから取得するよう変更した。
+
+このBT版を実機へ書き込み、hci0登録・タッチ再認識・Wi-Fi/SD維持を確認。
+rootfsは5,541,888 bytes、SHA-256は
+`213f09cce91225c796300abb030453dbb4388366c9bc4bcb945006f9990a671b`。
+カーネルSHA-256は`01b56ce4fddc00e23491d868df164cffc48ac4e627ac76398b27eff1a1117f6b`。
+スキャン開始はできたが、`Unable to create CMAC crypto context`が発生し、
+ペアリングは未実施。実際に不足していたのはCMAC自体ではなく、
+BT Kconfigがimplyするだけの`CONFIG_CRYPTO_AES`が既存のn設定で無効だったこと。
+93ba540でAESを明示有効化した。スキャンの自然停止後にStop Discoveryが
+Rejectedになる正常な競合も修正し、回帰fixtureを追加。再ビルド・再検証中。
 
 ## 次の確認
 

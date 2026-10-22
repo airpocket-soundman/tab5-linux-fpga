@@ -11,8 +11,10 @@ Vim/nano editing and SD save/readback, plus sl screen updates and normal exit, a
 [日本語](README.ja.md)
 
 Experimental touch input, 128-line tty1 history and a NOMMU BLE keyboard host
-are implemented. Offline input tests and userspace cross-compilation pass;
-physical input verification is pending. See the [development record](docs/TOUCH_AND_BLUETOOTH.md).
+are implemented. Offline input tests and userspace cross-compilation pass.
+Physical touch swipes and history display/restoration are verified. Bluetooth
+controller registration works; pairing and key input remain unverified.
+See the [development record](docs/TOUCH_AND_BLUETOOTH.md).
 
 Native RISC-V NOMMU Linux 6.18 on the **M5Stack Tab5** (ESP32-P4 + ESP32-C6):
 a console on the 5" display, typed on the **Tab5 Keyboard**, with Wi-Fi,
