@@ -1,0 +1,47 @@
+From: Tab5 Linux FPGA contributors
+Subject: [PATCH] vim: allow tiny NOMMU editing with shell commands disabled
+
+Build with USE_SYSTEM and TAB5_VIM_NO_SHELL. USE_SYSTEM excludes Vim's
+fork-based shell implementation; the dedicated option then excludes system()
+as well. Jobs and GUI are rejected at compile time. No fork-to-vfork
+substitution is made. Normal buffer editing and saving remain available.
+Shell commands, external filters and shell-backed filename expansion fail
+with a nonzero result. This is a board-specific feature reduction.
+
+--- a/src/os_unix.c
++++ b/src/os_unix.c
+@@ -19,6 +19,12 @@
+  */
+ 
+ #include "vim.h"
++
++#ifdef TAB5_VIM_NO_SHELL
++# if !defined(USE_SYSTEM) || defined(FEAT_JOB_CHANNEL) || defined(FEAT_GUI)
++#  error "Tab5 NOMMU Vim requires USE_SYSTEM without jobs or GUI"
++# endif
++#endif
+ 
+ #ifdef FEAT_MZSCHEME
+ # include "if_mzsch.h"
+@@ -4971,6 +4977,13 @@
+     char_u	*cmd,
+     int		options)	// SHELL_*, see vim.h
+ {
++# ifdef TAB5_VIM_NO_SHELL
++    // Editing and saving remain available; no child process is started.
++    (void)cmd;
++    if (!(options & SHELL_SILENT))
++	msg_puts(_("\nShell commands are disabled in this NOMMU build\n"));
++    return -1;
++# else
+ # ifdef VMS
+     char	*ifn = NULL;
+     char	*ofn = NULL;
+@@ -5055,6 +5068,7 @@
+     restore_clipboard();
+ # endif
+     return x;
++# endif // TAB5_VIM_NO_SHELL
+ }
+ 
+ #else // USE_SYSTEM
