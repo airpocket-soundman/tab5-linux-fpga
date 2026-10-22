@@ -9,16 +9,20 @@ full/low-speed device support through the DWC2 host driver.
 
 Force host PIO and disable descriptor DMA while PSRAM DMA coherency is
 unverified. Keep LPM and clock gating off until the boot-shim-owned PHY
-has Linux wake support. FIFO sizes/channel counts retain DWC2's hardware
+has Linux wake support. Use ESP-IDF's balanced HS FIFO allocation:
+RX512/NPTX256/PTX128 words, fitting the measured 896-word usable RAM.
+Unbounded reset depths otherwise trigger DWC2's generic >1500-word
+fallback and an invalid FIFO layout. Channel counts retain hardware
 inference. The boot shim must enable USB20 clocks/PHY/VBUS beforehand.
 
 Reference for PHY interface (hardware parameters, not copied code):
 https://github.com/espressif/esp-idf/blob/v5.5.5/components/hal/esp32p4/include/hal/usb_dwc_ll.h
+FIFO reference: components/usb/hcd_dwc.c, _calculate_fifo_from_bias().
 
 diff --git a/drivers/usb/dwc2/params.c b/drivers/usb/dwc2/params.c
 --- a/drivers/usb/dwc2/params.c
 +++ b/drivers/usb/dwc2/params.c
-@@ -318,9 +318,37 @@
+@@ -318,9 +318,46 @@
  	p->power_down = DWC2_POWER_DOWN_PARAM_NONE;
  }
  
@@ -33,6 +37,15 @@ diff --git a/drivers/usb/dwc2/params.c b/drivers/usb/dwc2/params.c
 +	p->phy_type = DWC2_PHY_TYPE_PARAM_UTMI;
 +	/* ESP-IDF's usb_dwc_ll_gusbcfg_set_utmi_phy() selects 16 bits. */
 +	p->phy_utmi_width = 16;
++	/*
++	 * The USB20 core reports 896 usable FIFO words. ESP-IDF's HS
++	 * balanced allocation uses RX = total - 256 - 128. Reset depths
++	 * otherwise trigger DWC2's generic high-bandwidth fallback, which
++	 * exceeds this core's FIFO RAM and programs overlapping queues.
++	 */
++	p->host_rx_fifo_size = 512;
++	p->host_nperio_tx_fifo_size = 256;
++	p->host_perio_tx_fifo_size = 128;
 +	p->i2c_enable = false;
 +	/* Start in PIO: PSRAM DMA/cache coherency is not validated here. */
 +	p->host_dma = false;
