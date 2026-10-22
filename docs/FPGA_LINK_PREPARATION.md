@@ -89,6 +89,33 @@ Windows PowerShell、Python 3.12、既存ホストZigで確認した。Tab5へ�
 
 これらはPC上のバイト列と制御処理の結果である。物理通信、RTL、DDR3アクセス、PARLIO DMA、転送帯域を検証した結果ではない。
 
+## CPythonを必要としないC mock CLI
+
+`tools/fpga-link/fpga_link.c`を追加した。既存の無改変`vendor/link_protocol.h`を使って要求生成と応答検査を行い、模擬FPGA応答生成はCで独立実装している。アプリケーションコードは8バイトの要求/応答と32バイト以下の行バッファを使い、可変長配列、再帰、malloc/calloc/reallocを使用しない。Cライブラリやプロセス起動時の内部メモリ使用までゼロとする主張ではない。
+
+C側のtransport境界は完全な8バイトフレームを受け渡す`exchange()`関数ポインタ。mockは同期的に必ず復帰し、実デバイスの待ちやタイムアウトを扱わない。Python側の断片化・deadline APIと同じ実装だとは扱わない。実通信backendを追加する際には、部分送受信・期限・破棄・再試行方針を改めて実装する必要がある。
+
+`--mock`が必須で、id/echo/invert/selftestの結果はJSONで表示する。`selftest`はIDと全256値echo/反転の513要求を実行し、8bit sequenceの周回も通る。`--vectors`はホストテスト用の標準入力インターフェースで、要求hexを1行ずつ入力し、不正CRC/形式を含む要求へのmock応答とC hostの受理判定を出力する。
+
+```text
+cc -std=c11 -O2 -Wall -Wextra -Werror tools/fpga-link/fpga_link.c -o fpga-link
+./fpga-link --mock id
+./fpga-link --mock echo 0x55 170
+./fpga-link --mock invert 0 0xff
+./fpga-link --mock selftest
+python tools/fpga-link/run_c_cli.py --cc cc
+```
+
+2026-10-22、既存WindowsホストZigで次を実行した。
+
+```text
+python tools/fpga-link/run_c_cli.py --cc D:/tmp/tab5-test-tools/ziglang/zig.exe --zig
+```
+
+`-std=c11 -O2 -Wall -Wextra -Werror`のコンパイルが成功し、C CLIの全583ベクタの応答と受理判定が、golden vectorsと独立Python実装の両方に一致した。CLIのid/echo/invertの3例、513要求selftest、不正引数・範囲外・不正hex・過大入力の14例の拒否も成功した。SOURCE.json、vendor header、golden vectorsはこの追加で変更していない。
+
+C CLIはホストでの実行確認まで。Tab5用RV32/uClibcクロスビルドとTab5上のmock実行・メモリ使用確認は未実施であり、SDK準備後の次作業とする。C CLIもGPIO/COM/FPGA/DDR3へ一切アクセスしない。
+
 ## GPIOと次の作業
 
 共通仕様の暫定案はD0–D7=`18,19,5,3,4,2,48,47`、CLK16、READY45、DIR51。現行Wi-Fi8〜13、microSD39〜44、液晶backlight22、タッチ23、I2C31/32、外付けキーボード0/1との単純な番号重複は見つからなかった。

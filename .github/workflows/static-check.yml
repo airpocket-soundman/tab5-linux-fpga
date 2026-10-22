@@ -18,3 +18,4 @@ jobs:
           python3 -m unittest discover -s tools/fpga-link -p test_fpga_link.py -v
           python3 tools/fpga-link/fpga_link.py --mock --fragment-size 1 selftest
           python3 tools/fpga-link/run_c_codec.py --cc cc
+          python3 tools/fpga-link/run_c_cli.py --cc cc
