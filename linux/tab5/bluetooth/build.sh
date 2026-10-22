@@ -6,9 +6,8 @@ sdk=$(cd "$1" && pwd)
 mkdir -p "$2"
 output=$(cd "$2" && pwd)
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-compilers=("$sdk"/bin/*-gcc)
-[[ ${#compilers[@]} == 1 && -x ${compilers[0]} ]] || { echo 'Expected one SDK C compiler' >&2; exit 1; }
-compiler=${compilers[0]}
+compiler="$sdk/bin/riscv32-buildroot-linux-uclibc-gcc"
+[[ -x "$compiler" ]] || { echo 'Expected the pinned SDK C compiler' >&2; exit 1; }
 [[ $("$compiler" -dumpmachine) == riscv32-* ]] || { echo 'Requires the RV32 NOMMU SDK' >&2; exit 1; }
 "$compiler" -Os -std=c11 -fPIC -static -march=rv32imac_zicsr_zifencei \
     -mabi=ilp32 -Wall -Wextra -Werror '-Wl,-elf2flt=-r -s65536' \
