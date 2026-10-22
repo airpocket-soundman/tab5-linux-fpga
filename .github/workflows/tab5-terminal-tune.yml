@@ -1,0 +1,95 @@
+# Runtime stack experiment only; preserves the source rootfs contents.
+# Requires kernel patch 0080 for access to the complete 7 MiB rootfs window.
+name: tab5-terminal-tune
+on:
+  push:
+    branches: [codex/st7121-display]
+    paths:
+      - '.github/workflows/tab5-terminal-tune.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  tune:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Install rootfs tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends squashfs-tools
+      - name: Download successful terminal application rootfs
+        uses: actions/download-artifact@v4
+        with:
+          name: tab5-terminal-apps
+          run-id: '39761292328'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: baseline
+      - name: Verify source rootfs
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          root = Path('baseline')
+          hashes = {}
+          for line in (root / 'SHA256SUMS.txt').read_text().splitlines():
+              digest, name = line.split(maxsplit=1)
+              hashes[name.lstrip('*')] = digest
+          data = (root / 'rootfs.squashfs').read_bytes()
+          if hashlib.sha256(data).hexdigest() != hashes['rootfs.squashfs']:
+              raise SystemExit('Baseline rootfs SHA-256 mismatch')
+          PY
+          sudo unsquashfs -d rootfs baseline/rootfs.squashfs
+      - name: Raise only Vim stack to 256 KiB
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          sudo python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          import struct
+          path = Path('rootfs/usr/bin/vim')
+          if path.is_symlink() or not path.is_file():
+              raise SystemExit('Expected genuine Vim executable in source rootfs')
+          data = bytearray(path.read_bytes())
+          if len(data) < 64 or data[:4] != b'bFLT':
+              raise SystemExit('Expected bFLT Vim executable')
+          header = struct.unpack('>4s15I', data[:64])
+          if header[1] != 4 or header[9] & 0x0c:
+              raise SystemExit('Unsupported bFLT revision or compressed executable')
+          if header[6] != 65536:
+              raise SystemExit(f'Unexpected source Vim stack: {header[6]}')
+          before = hashlib.sha256(data).hexdigest()
+          struct.pack_into('>I', data, 24, 262144)
+          path.write_bytes(data)
+          report = {'baseline_run': 39761292328,
+                    'change': 'Vim bFLT stack field only',
+                    'old_stack_bytes': header[6], 'new_stack_bytes': 262144,
+                    'vim_bytes': len(data), 'vim_sha256_before': before,
+                    'vim_sha256_after': hashlib.sha256(data).hexdigest(),
+                    'kernel_requirement': '0080 full 7 MiB rootfs mapping',
+                    'runtime_result': 'not tested by this workflow'}
+          Path('artifacts/vim-stack.json').write_text(json.dumps(report, indent=2) + '\n')
+          print(json.dumps(report, indent=2))
+          PY
+          sudo mksquashfs rootfs artifacts/rootfs.squashfs \
+            -noappend -comp lz4 -b 131072 -Xhc
+          test "$(stat -c %s artifacts/rootfs.squashfs)" -le $((0x700000))
+          unsquashfs -s artifacts/rootfs.squashfs | tee artifacts/rootfs-info.txt
+          grep -q 'Compression lz4' artifacts/rootfs-info.txt
+          unsquashfs -cat artifacts/rootfs.squashfs usr/bin/vim | cmp - rootfs/usr/bin/vim
+          printf '%s\n' 'Requires kernel patch 0080 for the full 7 MiB rootfs mapping.' \
+            'Only the Vim bFLT stack allocation changes, from 64 KiB to 256 KiB.' \
+            'Target runtime validation is required.' > artifacts/STACK-NOTE.txt
+          (cd artifacts && sha256sum rootfs.squashfs vim-stack.json STACK-NOTE.txt > SHA256SUMS.txt)
+      - name: Upload tuned rootfs
+        uses: actions/upload-artifact@v4
+        with:
+          name: tab5-terminal-tuned-rootfs
+          path: artifacts/
+          compression-level: 0
+          if-no-files-found: error
