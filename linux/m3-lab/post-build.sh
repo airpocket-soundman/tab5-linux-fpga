@@ -23,6 +23,7 @@ for path in \
 	"${TARGET_DIR}/etc/init.d/S03loopback" \
 	"${TARGET_DIR}/etc/init.d/S05easystick-tmpfs" \
 	"${TARGET_DIR}/etc/init.d/S30tab5-sdcard" \
+	"${TARGET_DIR}/etc/init.d/S99tab5-display" \
 	"${TARGET_DIR}/etc/init.d/S40network" \
 	"${TARGET_DIR}/etc/init.d/S45bootsync" \
 	"${TARGET_DIR}/etc/init.d/S85easystick-ssh" \
@@ -259,3 +260,5 @@ find "${TARGET_DIR}" -type l | while read -r link; do
 	echo "M3-lab: dangling symlink ${link#"${TARGET_DIR}"/} -> ${t}" >&2
 	exit 1
 done || exit 1
+
+chmod 0755 "${TARGET_DIR}/etc/init.d/S99tab5-display"

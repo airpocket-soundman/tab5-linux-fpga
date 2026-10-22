@@ -8,6 +8,7 @@ on:
       - 'linux/m3-lab/rootfs-overlay/usr/sbin/tab5-wifi'
       - 'linux/m3-lab/rootfs-overlay/etc/profile'
       - 'linux/m3-lab/rootfs-overlay/etc/init.d/S30tab5-sdcard'
+      - 'linux/m3-lab/rootfs-overlay/etc/init.d/S99tab5-display'
   workflow_dispatch:
 permissions:
   contents: read
@@ -51,6 +52,7 @@ jobs:
           sudo install -o 0 -g 0 -m 755 linux/m3-lab/rootfs-overlay/usr/sbin/tab5-wifi rootfs/usr/sbin/tab5-wifi
           sudo install -o 0 -g 0 -m 644 linux/m3-lab/rootfs-overlay/etc/profile rootfs/etc/profile
           sudo install -o 0 -g 0 -m 755 linux/m3-lab/rootfs-overlay/etc/init.d/S30tab5-sdcard rootfs/etc/init.d/S30tab5-sdcard
+          sudo install -o 0 -g 0 -m 755 linux/m3-lab/rootfs-overlay/etc/init.d/S99tab5-display rootfs/etc/init.d/S99tab5-display
           sudo mkdir -p rootfs/mnt/sdcard
           sudo mksquashfs rootfs artifacts/rootfs.squashfs -noappend -comp lz4 -b 131072 -Xhc
           test "$(stat -c %s artifacts/rootfs.squashfs)" -le $((0x700000))
@@ -59,6 +61,7 @@ jobs:
           unsquashfs -cat artifacts/rootfs.squashfs etc/init.d/S03loopback | cmp - linux/m3-lab/rootfs-overlay/etc/init.d/S03loopback
           unsquashfs -cat artifacts/rootfs.squashfs usr/sbin/tab5-wifi | cmp - linux/m3-lab/rootfs-overlay/usr/sbin/tab5-wifi
           unsquashfs -cat artifacts/rootfs.squashfs etc/init.d/S30tab5-sdcard | cmp - linux/m3-lab/rootfs-overlay/etc/init.d/S30tab5-sdcard
+          unsquashfs -cat artifacts/rootfs.squashfs etc/init.d/S99tab5-display | cmp - linux/m3-lab/rootfs-overlay/etc/init.d/S99tab5-display
           unsquashfs -cat artifacts/rootfs.squashfs etc/profile | cmp - linux/m3-lab/rootfs-overlay/etc/profile
           printf 'source_commit=%s\nbaseline_run=39729147095\nrootfs_offset=0x810000\n' "$GITHUB_SHA" > artifacts/build-info.txt
           (cd artifacts && sha256sum rootfs.squashfs > SHA256SUMS.txt)

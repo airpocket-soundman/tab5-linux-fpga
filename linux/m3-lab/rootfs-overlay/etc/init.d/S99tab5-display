@@ -1,0 +1,10 @@
+#!/bin/sh
+# Keep the local console visible after login has been idle.
+case "${1:-start}" in
+ start|restart)
+  [ ! -c /dev/tty1 ] || printf '\033[9;0]\033[13]' > /dev/tty1
+  [ ! -w /sys/class/graphics/fb0/blank ] || echo 0 > /sys/class/graphics/fb0/blank
+  ;;
+ stop) ;;
+esac
+exit 0
