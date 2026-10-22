@@ -7,6 +7,12 @@ on:
       - 'linux/tab5/terminal-apps/**'
       - 'tools/fpga-link/**'
   workflow_dispatch:
+    inputs:
+      storage:
+        description: 'Internal requires kernel patch 0080; SD uses launchers'
+        type: choice
+        options: [internal, sd]
+        default: internal
 permissions:
   contents: read
   actions: read
@@ -19,6 +25,7 @@ jobs:
     timeout-minutes: 120
     env:
       TAB5_APPS_JOBS: '4'
+      TAB5_APPS_STORAGE: ${{ inputs.storage || 'internal' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install userspace build dependencies
@@ -72,10 +79,13 @@ jobs:
           python3 linux/tab5/terminal-apps/package.py baseline baseline
           sudo unsquashfs -d rootfs baseline/rootfs.squashfs
           sudo python3 linux/tab5/terminal-apps/package.py install \
-            rootfs artifacts/terminal-apps linux/m3-lab/rootfs-overlay
+            rootfs artifacts/terminal-apps linux/m3-lab/rootfs-overlay "$TAB5_APPS_STORAGE"
           sudo mksquashfs rootfs artifacts/terminal-apps/rootfs.squashfs \
             -noappend -comp lz4 -b 131072 -Xhc
-          test "$(stat -c %s artifacts/terminal-apps/rootfs.squashfs)" -le $((0x400000))
+          limit=$((0x700000))
+          if [ "$TAB5_APPS_STORAGE" = sd ]; then limit=$((0x400000)); fi
+          test "$(stat -c %s artifacts/terminal-apps/rootfs.squashfs)" -le "$limit"
+          printf 'storage=%s\ninternal_requires_kernel_patch=0080\n' "$TAB5_APPS_STORAGE" >> artifacts/terminal-apps/build-info.txt
           unsquashfs -s artifacts/terminal-apps/rootfs.squashfs | tee artifacts/terminal-apps/rootfs-info.txt
           grep -q 'Compression lz4' artifacts/terminal-apps/rootfs-info.txt
           for path in etc/init.d/S03loopback usr/sbin/tab5-wifi etc/profile \
@@ -84,8 +94,9 @@ jobs:
               | cmp - "linux/m3-lab/rootfs-overlay/$path"
           done
           for app in vim nano sl fpga-link; do
-            unsquashfs -cat artifacts/terminal-apps/rootfs.squashfs "usr/bin/$app" \
-              | cmp - linux/tab5/terminal-apps/launcher.sh
+            expected="artifacts/terminal-apps/payload/usr/bin/$app"
+            if [ "$TAB5_APPS_STORAGE" = sd ]; then expected=linux/tab5/terminal-apps/launcher.sh; fi
+            unsquashfs -cat artifacts/terminal-apps/rootfs.squashfs "usr/bin/$app" | cmp - "$expected"
           done
           (cd artifacts/terminal-apps && sha256sum rootfs.squashfs \
             tab5-terminal-apps.tar.gz applications.json buildroot.config build-info.txt > SHA256SUMS.txt)

@@ -83,17 +83,21 @@ def baseline(folder):
         (folder / 'rootfs.squashfs').write_bytes(image)
 
 
-def install(rootfs, artifacts, overlay):
-    # Keep the internal rootfs inside the observed 4 MiB Linux MTD window.
-    # Genuine binaries, terminfo and Vim defaults are deployed to microSD.
-    launcher = Path(__file__).with_name('launcher.sh')
-    for app in ('vim', 'nano', 'sl', 'fpga-link'):
-        target = rootfs / 'usr/bin' / app
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if target.is_symlink():
-            target.unlink()
-        shutil.copyfile(launcher, target)
-        target.chmod(0o755)
+def install(rootfs, artifacts, overlay, storage="internal"):
+    if storage == 'internal':
+        # Requires kernel patch 0080: exact 7 MiB ROM mapping.
+        shutil.copytree(artifacts / 'payload/usr', rootfs / 'usr', dirs_exist_ok=True)
+    elif storage == 'sd':
+        launcher = Path(__file__).with_name('launcher.sh')
+        for app in ('vim', 'nano', 'sl', 'fpga-link'):
+            target = rootfs / 'usr/bin' / app
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if target.is_symlink():
+                target.unlink()
+            shutil.copyfile(launcher, target)
+            target.chmod(0o755)
+    else:
+        raise SystemExit('storage must be internal or sd')
     for name in HELPERS:
         source = overlay / name
         target = rootfs / name
@@ -109,8 +113,8 @@ if __name__ == '__main__':
     mode, *args = sys.argv[1:]
     if mode == 'baseline' and len(args) == 1:
         baseline(Path(args[0]))
-    elif mode == 'install' and len(args) == 3:
-        install(*(Path(arg) for arg in args))
+    elif mode == 'install' and len(args) in (3, 4):
+        install(*(Path(arg) for arg in args[:3]), storage=args[3] if len(args) == 4 else 'internal')
     elif len(sys.argv) == 3:
         payload(Path(sys.argv[1]), Path(sys.argv[2]))
     else:

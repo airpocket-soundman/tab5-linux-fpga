@@ -36,13 +36,15 @@ C mock test tool (no hardware backend), minimal Vim defaults, and terminfo, incl
 `vt102`, `linux`, `xterm`, and `xterm-256color`. It does not replace libc,
 BusyBox, `vi`, firmware, kernel modules, or network daemons. Current board
 network, SD, and display helpers are copied explicitly when repacking the
-verified baseline rootfs. The physical rootfs partition is 7 MiB, but the current Linux MTD device
-exposes only 4 MiB. A 5.4 MiB rootfs failed to mount on hardware. CI therefore
-limits the internal rootfs to 4 MiB and installs only four launchers there.
-Deploy the payload `usr/` tree under `/mnt/sdcard/tab5/apps/` on the mounted
-card. The launchers verify the SD mount, set TERMINFO and VIMRUNTIME to the
-SD payload, and execute the genuine binaries. Without the card or payload
-they return a clear error. Do not flash the earlier oversized rootfs.
+verified baseline rootfs. The physical rootfs partition is 7 MiB. Earlier kernels exposed only 4 MiB
+because physmap rounded the size down; kernel patch 0080 preserves all 7 MiB.
+The default `internal` storage choice requires that kernel patch. Never flash
+a rootfs larger than 4 MiB with an older kernel. The `sd` workflow choice
+keeps four launchers in a rootfs capped at 4 MiB instead. For that choice,
+deploy the payload `usr/` tree under `/mnt/sdcard/tab5/apps/` on the mounted
+card. Launchers set TERMINFO/VIMRUNTIME and return a clear error if the SD
+payload is absent. SD execution and sustained Wi-Fi/SD transfer require their
+own runtime checks; a compiled payload alone does not establish those results.
 
 The build records package licenses and recipes. Exact upstream versions
 and source checksums are pinned by the selected Buildroot commit and its
