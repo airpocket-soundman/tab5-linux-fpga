@@ -16,6 +16,11 @@ ESP_HOSTED_NG_MODULE_MAKE_OPTS = \
 	CONFIG_DEBUG_LOGS=n \
 	CONFIG_AP_SUPPORT=y
 
+# Explicit opt-in only; the kernel must also include the Tab5 BLE fragment.
+ifeq ($(TAB5_BLE),1)
+ESP_HOSTED_NG_MODULE_MAKE_OPTS += CONFIG_ESP_HOSTED_BLE=y
+endif
+
 define ESP_HOSTED_NG_NORMALIZE_LINE_ENDINGS
 	find $(@D) -type f \( -name '*.c' -o -name '*.h' -o -name Makefile \) \
 		-exec sed -i 's/\r$$//' {} +

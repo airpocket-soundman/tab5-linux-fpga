@@ -7,6 +7,7 @@ on:
       - 'linux/tab5/terminal-apps/**'
       - 'tools/fpga-link/**'
       - 'tools/tab5-console/**'
+      - 'linux/tab5/bluetooth/**'
       - 'linux/m3-lab/rootfs-overlay/etc/init.d/S98tab5-touch-scroll'
   workflow_dispatch:
     inputs:
@@ -98,6 +99,8 @@ jobs:
           done
           unsquashfs -cat artifacts/terminal-apps/rootfs.squashfs usr/bin/tab5-touch-scroll \
             | cmp - artifacts/terminal-apps/payload/usr/bin/tab5-touch-scroll
+          unsquashfs -cat artifacts/terminal-apps/rootfs.squashfs usr/bin/tab5-ble-hid \
+            | cmp - artifacts/terminal-apps/payload/usr/bin/tab5-ble-hid
           for app in vim nano sl fpga-link; do
             expected="artifacts/terminal-apps/payload/usr/bin/$app"
             if [ "$TAB5_APPS_STORAGE" = sd ]; then expected=linux/tab5/terminal-apps/launcher.sh; fi

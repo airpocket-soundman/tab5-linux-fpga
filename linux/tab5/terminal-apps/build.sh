@@ -101,6 +101,8 @@ apps() {
         '-Wl,-elf2flt=-r -s32768' \
         -o "$output/target/usr/bin/tab5-touch-scroll" \
         "$repo/tools/tab5-console/tab5-touch-scroll.c"
+    bash "$repo/linux/tab5/bluetooth/build.sh" "$output/host" "$artifacts/ble-build"
+    cp "$artifacts/ble-build/tab5-ble-hid" "$output/target/usr/bin/"
     python3 "$script_dir/package.py" "$output" "$artifacts"
     mkdir -p "$artifacts/licenses"
     cp "$source_dir/package/vim/vim.mk" "$source_dir/package/nano/nano.mk" \

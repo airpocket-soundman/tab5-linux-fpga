@@ -1,0 +1,12 @@
+# Experimental BLE-only HCI over the existing ESP-Hosted SDIO transport.
+# No standalone generic SDIO Bluetooth driver: esp32_sdio registers HCI itself.
+CONFIG_BT=y
+CONFIG_BT_BREDR=n
+CONFIG_BT_LE=y
+CONFIG_BT_DEBUGFS=n
+CONFIG_BT_SELFTEST=n
+CONFIG_BT_LE_L2CAP_ECRED=n
+CONFIG_UHID=y
+CONFIG_HID=y
+CONFIG_HID_GENERIC=y
+CONFIG_INPUT_EVDEV=y

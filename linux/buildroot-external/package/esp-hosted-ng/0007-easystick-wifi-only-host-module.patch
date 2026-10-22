@@ -9,19 +9,21 @@ test.  A later Bluetooth milestone must replace this guard with its own
 tested initialization path.
 
 ---
- main.c | 4 ++++
- 1 file changed, 4 insertions(+)
+ main.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
 
 diff --git a/main.c b/main.c
 index 1111111..2222222 100644
 --- a/main.c
 +++ b/main.c
-@@ -235,4 +235,8 @@ static void init_bt(struct esp_adapter *adapter)
+@@ -235,4 +235,10 @@ static void init_bt(struct esp_adapter *adapter)
  {
  
++#ifndef CONFIG_ESP_HOSTED_BLE
 +	if ((adapter->capabilities & ESP_BT_SPI_SUPPORT) ||
 +		(adapter->capabilities & ESP_BT_SDIO_SUPPORT))
 +		return;
++#endif
 +
  	if ((adapter->capabilities & ESP_BT_SPI_SUPPORT) ||
  		(adapter->capabilities & ESP_BT_SDIO_SUPPORT)) {

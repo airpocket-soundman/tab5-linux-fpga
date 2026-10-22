@@ -1,0 +1,17 @@
+From: Tab5 Linux FPGA maintainers
+Subject: [PATCH] host: allow explicit BLE opt-in without changing Wi-Fi defaults
+
+The default host retains patch 0007's Wi-Fi-only behavior. An experimental
+build may opt into the existing HCI transport when its kernel supports BT.
+
+--- a/Makefile
++++ b/Makefile
+@@ -40,4 +40,8 @@
+ # Common source files
++ifeq ($(CONFIG_ESP_HOSTED_BLE),y)
++    ccflags-y += -DCONFIG_ESP_HOSTED_BLE
++endif
++
+ ifneq ($(CONFIG_BT),)
+     module_objects += esp_bt.o
+ endif

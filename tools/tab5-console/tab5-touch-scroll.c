@@ -8,6 +8,7 @@
 #include <linux/tiocl.h>
 #include <linux/vt.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -36,6 +37,17 @@ static int scroll_lines(int tty, int lines)
     if (active.v_active != 1) return 0;
     int request[2] = { TIOCL_SCROLLCONSOLE, lines };
     return ioctl(tty, TIOCLINUX, request);
+}
+
+static int current_position(int fd, int axis, int *position)
+{
+    struct input_absinfo info;
+    int result;
+    do { result = ioctl(fd, EVIOCGABS(axis), &info); }
+    while (result < 0 && errno == EINTR);
+    if (result < 0) return -1;
+    *position = info.value;
+    return 0;
 }
 
 int main(int argc, char **argv)
@@ -69,7 +81,11 @@ int main(int argc, char **argv)
     for (;;) {
         int fd = open_touch();
         if (fd < 0) { sleep(2); continue; }
-        int down = 0, tracking = 0, position = 0, anchor = 0;
+        int down = 0, tracking = 0, position, anchor = 0;
+        /* Unchanged ABS values need not be emitted on the next contact. */
+        if (current_position(fd, axis, &position) < 0) {
+            close(fd); sleep(1); continue;
+        }
         struct input_event event;
         ssize_t length;
         for (;;) {
@@ -81,15 +97,23 @@ int main(int argc, char **argv)
             if (event.type == EV_SYN && event.code == SYN_DROPPED) {
                 /* Never turn lost events into a large accidental swipe. */
                 down = tracking = 0;
-                do { length = read(fd, &event, sizeof(event)); }
+                do {
+                    do { length = read(fd, &event, sizeof(event)); }
+                    while (length < 0 && errno == EINTR);
+                }
                 while (length == (ssize_t)sizeof(event) &&
                        !(event.type == EV_SYN && event.code == SYN_REPORT));
+                if (length != (ssize_t)sizeof(event) ||
+                    current_position(fd, axis, &position) < 0) break;
                 continue;
             }
             if (event.type != EV_SYN || event.code != SYN_REPORT) continue;
             if (!down) { tracking = 0; continue; }
             if (!tracking) { anchor = position; tracking = 1; continue; }
-            int lines = (position - anchor) / pixels;
+            int64_t distance = (int64_t)position - anchor;
+            int64_t movement = distance / pixels;
+            /* Keep each ioctl bounded even after a discontinuous report. */
+            int lines = movement > 128 ? 128 : (movement < -128 ? -128 : (int)movement);
             if (lines) {
                 /* Drag content down to reveal older output (negative lines). */
                 if (scroll_lines(tty, -sign * lines) < 0) {

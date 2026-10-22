@@ -36,7 +36,7 @@ def payload(output, artifacts):
         shutil.rmtree(dest)
     (dest / 'usr/bin').mkdir(parents=True)
     manifest = {}
-    for app in ('vim', 'nano', 'sl', 'fpga-link', 'tab5-touch-scroll'):
+    for app in ('vim', 'nano', 'sl', 'fpga-link', 'tab5-touch-scroll', 'tab5-ble-hid'):
         source = target / 'usr/bin' / app
         if source.is_symlink() or not source.is_file():
             raise SystemExit(f'Expected genuine application binary: {source}')
@@ -46,7 +46,7 @@ def payload(output, artifacts):
         header = struct.unpack('>4s15I', data[:64])
         if header[1] != 4 or header[9] & 0x0c:
             raise SystemExit(f'Unexpected bFLT revision/compression: {app}')
-        stack = 262144 if app == 'vim' else (65536 if app == 'nano' else 32768)
+        stack = 262144 if app == 'vim' else (65536 if app in ('nano', 'tab5-ble-hid') else 32768)
         struct.pack_into('>I', data, 24, stack)
         binary = dest / 'usr/bin' / app
         binary.write_bytes(data)
@@ -98,9 +98,10 @@ def install(rootfs, artifacts, overlay, storage="internal"):
             shutil.copyfile(launcher, target)
             target.chmod(0o755)
         # Console input must work even when the SD application tree is absent.
-        target = rootfs / 'usr/bin/tab5-touch-scroll'
-        shutil.copyfile(artifacts / 'payload/usr/bin/tab5-touch-scroll', target)
-        target.chmod(0o755)
+        for helper in ('tab5-touch-scroll', 'tab5-ble-hid'):
+            target = rootfs / 'usr/bin' / helper
+            shutil.copyfile(artifacts / 'payload/usr/bin' / helper, target)
+            target.chmod(0o755)
     else:
         raise SystemExit('storage must be internal or sd')
     for name in HELPERS:

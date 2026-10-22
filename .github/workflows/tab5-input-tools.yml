@@ -1,0 +1,66 @@
+name: tab5-input-tools
+on:
+  push:
+    branches: [codex/st7121-display]
+    paths:
+      - '.github/workflows/tab5-input-tools.yml'
+      - 'linux/tab5/bluetooth/**'
+      - 'tools/tab5-console/**'
+      - 'linux/m3-lab/rootfs-overlay/etc/init.d/S98tab5-touch-scroll'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  input:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y squashfs-tools build-essential
+      - uses: actions/download-artifact@v4
+        with:
+          name: tab5-terminal-sdk
+          run-id: '39765710691'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: sdk-download
+      - uses: actions/download-artifact@v4
+        with:
+          name: tab5-terminal-apps
+          run-id: '39868276889'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: baseline
+      - name: Compile and test input helpers with the pinned NOMMU SDK
+        run: |
+          set -euo pipefail
+          mkdir -p sdk artifacts
+          (cd sdk-download && sha256sum -c SHA256SUMS.txt)
+          tar -xzf sdk-download/tab5-rv32imac-nommu-sdk.tar.gz -C sdk
+          sdk/host/relocate-sdk.sh
+          gcc -std=c11 -O2 -Wall -Wextra -Werror linux/tab5/bluetooth/test-wire.c -o /tmp/ble-wire-test
+          /tmp/ble-wire-test | tee artifacts/ble-wire-test.log
+          bash linux/tab5/bluetooth/build.sh sdk/host artifacts
+          sdk/host/bin/riscv32-buildroot-linux-uclibc-gcc \
+            -std=c11 -Wall -Wextra -Werror -Os -fPIC -static \
+            -march=rv32imac_zicsr_zifencei -mabi=ilp32 \
+            '-Wl,-elf2flt=-r -s32768' \
+            tools/tab5-console/tab5-touch-scroll.c -o artifacts/tab5-touch-scroll
+      - name: Repack existing terminal rootfs with current input helpers
+        run: |
+          set -euo pipefail
+          (cd baseline && sha256sum -c SHA256SUMS.txt)
+          sudo unsquashfs -d rootfs baseline/rootfs.squashfs
+          sudo install -m 755 artifacts/tab5-touch-scroll artifacts/tab5-ble-hid rootfs/usr/bin/
+          sudo install -m 755 linux/m3-lab/rootfs-overlay/etc/init.d/S98tab5-touch-scroll rootfs/etc/init.d/
+          sudo mksquashfs rootfs artifacts/rootfs.squashfs -noappend -comp lz4 -b 131072 -Xhc
+          test "$(stat -c %s artifacts/rootfs.squashfs)" -le $((0x700000))
+          for binary in tab5-touch-scroll tab5-ble-hid; do
+            unsquashfs -cat artifacts/rootfs.squashfs "usr/bin/$binary" | cmp - "artifacts/$binary"
+          done
+          printf 'source_commit=%s\nbaseline_run=39868276889\nsdk_run=39765710691\nrequires_kernel_patches=0080,0081,0082\nble_autostart=no\n' "$GITHUB_SHA" > artifacts/build-info.txt
+          (cd artifacts && sha256sum tab5-touch-scroll tab5-ble-hid rootfs.squashfs build-info.txt > SHA256SUMS.txt)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tab5-input-tools
+          path: artifacts/
