@@ -6,6 +6,8 @@ on:
       - '.github/workflows/tab5-terminal-apps.yml'
       - 'linux/tab5/terminal-apps/**'
       - 'tools/fpga-link/**'
+      - 'tools/tab5-console/**'
+      - 'linux/m3-lab/rootfs-overlay/etc/init.d/S98tab5-touch-scroll'
   workflow_dispatch:
     inputs:
       storage:
@@ -89,10 +91,13 @@ jobs:
           unsquashfs -s artifacts/terminal-apps/rootfs.squashfs | tee artifacts/terminal-apps/rootfs-info.txt
           grep -q 'Compression lz4' artifacts/terminal-apps/rootfs-info.txt
           for path in etc/init.d/S03loopback usr/sbin/tab5-wifi etc/profile \
-            etc/init.d/S30tab5-sdcard etc/init.d/S99tab5-display; do
+            etc/init.d/S30tab5-sdcard etc/init.d/S99tab5-display \
+            etc/init.d/S98tab5-touch-scroll; do
             unsquashfs -cat artifacts/terminal-apps/rootfs.squashfs "$path" \
               | cmp - "linux/m3-lab/rootfs-overlay/$path"
           done
+          unsquashfs -cat artifacts/terminal-apps/rootfs.squashfs usr/bin/tab5-touch-scroll \
+            | cmp - artifacts/terminal-apps/payload/usr/bin/tab5-touch-scroll
           for app in vim nano sl fpga-link; do
             expected="artifacts/terminal-apps/payload/usr/bin/$app"
             if [ "$TAB5_APPS_STORAGE" = sd ]; then expected=linux/tab5/terminal-apps/launcher.sh; fi

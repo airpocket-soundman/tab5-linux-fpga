@@ -11,6 +11,10 @@ on:
       - 'linux/kernel-patches/0078-dwc2-esp32p4-usb20-host-pio.patch'
       - 'linux/kernel-patches/0079-spi-gpio-honor-delay.patch'
       - 'linux/kernel-patches/0080-physmap-rom-preserve-resource-size.patch'
+      - 'linux/kernel-patches/0081-input-tab5-st712x-touch.patch'
+      - 'linux/kernel-patches/0082-tab5-vt-scrollback.patch'
+      - 'linux/dts/tab5-touch.dtsi'
+      - 'linux/tab5/touch.config.fragment'
       - 'linux/dts/tab5-usb-host.dtsi'
       - 'linux/dts/tab5-microsd-spi.dtsi'
       - 'linux/tab5/usb-host-boot-symbols.json'
@@ -58,6 +62,10 @@ jobs:
             < linux/kernel-patches/0079-spi-gpio-honor-delay.patch
           patch --batch --forward -d work/linux-custom -p1 \
             < linux/kernel-patches/0080-physmap-rom-preserve-resource-size.patch
+          patch --batch --forward -d work/linux-custom -p1 \
+            < linux/kernel-patches/0081-input-tab5-st712x-touch.patch
+          patch --batch --forward -d work/linux-custom -p1 \
+            < linux/kernel-patches/0082-tab5-vt-scrollback.patch
           python3 - <<'PY'
           from pathlib import Path
           path = Path('work/linux-custom/arch/riscv/boot/dts/espressif/easystick-stamp-p4.dts')
@@ -71,18 +79,22 @@ jobs:
             >> work/linux-custom/arch/riscv/boot/dts/espressif/easystick-stamp-p4.dts
           cat linux/dts/tab5-microsd-spi.dtsi \
             >> work/linux-custom/arch/riscv/boot/dts/espressif/easystick-stamp-p4.dts
+          cat linux/dts/tab5-touch.dtsi \
+            >> work/linux-custom/arch/riscv/boot/dts/espressif/easystick-stamp-p4.dts
           work/linux-custom/scripts/config --file work/obj/.config \
             --enable USB --enable HID_SUPPORT --enable HID --enable HID_GENERIC \
             --enable USB_HID --enable USB_DWC2_HOST \
-            --disable USB_DWC2_PERIPHERAL --disable USB_DWC2_DUAL_ROLE
+            --disable USB_DWC2_PERIPHERAL --disable USB_DWC2_DUAL_ROLE \
+            --enable TAB5_VT_SCROLLBACK
           python3 - <<'PY'
           import re
           import subprocess
           from pathlib import Path
 
           fragment = Path('linux/tab5/microsd-spi.config.fragment')
+          touch_fragment = Path('linux/tab5/touch.config.fragment')
           options = []
-          for line in fragment.read_text().splitlines():
+          for line in (fragment.read_text() + '\n' + touch_fragment.read_text()).splitlines():
               line = line.strip()
               if not line or line.startswith('#'):
                   continue
@@ -90,8 +102,9 @@ jobs:
               if not match:
                   raise SystemExit(f'Unsupported microSD config line: {line}')
               options.append(match[1])
-          if not options or len(options) != len(set(options)):
-              raise SystemExit('microSD config must contain unique enabled symbols')
+          options = list(dict.fromkeys(options))
+          if not options:
+              raise SystemExit('Required config fragments are empty')
           args = ['work/linux-custom/scripts/config', '--file', 'work/obj/.config']
           for option in options:
               args.extend(['--enable', option])
@@ -110,6 +123,9 @@ jobs:
               linux/kernel-patches/0078-dwc2-esp32p4-usb20-host-pio.patch \
               linux/kernel-patches/0079-spi-gpio-honor-delay.patch \
               linux/kernel-patches/0080-physmap-rom-preserve-resource-size.patch \
+              linux/kernel-patches/0081-input-tab5-st712x-touch.patch \
+              linux/kernel-patches/0082-tab5-vt-scrollback.patch \
+              linux/dts/tab5-touch.dtsi linux/tab5/touch.config.fragment \
               linux/dts/tab5-usb-host.dtsi linux/dts/tab5-microsd-spi.dtsi \
               linux/tab5/microsd-spi.config.fragment
           } > artifacts/build-info.txt
@@ -165,7 +181,7 @@ jobs:
           set -euo pipefail
           make -C work/linux-custom O="$GITHUB_WORKSPACE/work/obj" olddefconfig \
             2>&1 | tee artifacts/configure.log
-          for option in USB HID_SUPPORT HID HID_GENERIC USB_HID USB_DWC2_HOST; do
+          for option in USB HID_SUPPORT HID HID_GENERIC USB_HID USB_DWC2_HOST TAB5_VT_SCROLLBACK; do
             grep -Fxq "CONFIG_${option}=y" work/obj/.config || {
               echo "Required kernel option was disabled: $option" >&2
               exit 1
@@ -200,6 +216,7 @@ jobs:
           grep -Fq 'espressif,esp32p4-otg20' artifacts/easystick-stamp-p4.dts
           grep -Fq 'mmc-spi-slot' artifacts/easystick-stamp-p4.dts
           grep -Fq 'spi-gpio' artifacts/easystick-stamp-p4.dts
+          grep -Fq 'm5stack,tab5-st712x' artifacts/easystick-stamp-p4.dts
           cp "$image" artifacts/Image
           cp "$dtb" artifacts/easystick-stamp-p4.dtb
           cp work/obj/.config artifacts/kernel.config
@@ -210,6 +227,10 @@ jobs:
           cp linux/dts/tab5-usb-host.dtsi artifacts/
           cp linux/dts/tab5-microsd-spi.dtsi artifacts/
           cp linux/tab5/microsd-spi.config.fragment artifacts/
+          cp linux/kernel-patches/0081-input-tab5-st712x-touch.patch artifacts/
+          cp linux/kernel-patches/0082-tab5-vt-scrollback.patch artifacts/
+          cp linux/dts/tab5-touch.dtsi artifacts/
+          cp linux/tab5/touch.config.fragment artifacts/
           printf 'Image_bytes=%s\nDTB_bytes=%s\n' "$image_size" "$dtb_size" \
             >> artifacts/build-info.txt
           (cd artifacts && sha256sum Image easystick-stamp-p4.dtb kernel.config \
@@ -217,6 +238,8 @@ jobs:
             0078-dwc2-esp32p4-usb20-host-pio.patch \
             0079-spi-gpio-honor-delay.patch \
             0080-physmap-rom-preserve-resource-size.patch tab5-usb-host.dtsi tab5-microsd-spi.dtsi \
+            0081-input-tab5-st712x-touch.patch 0082-tab5-vt-scrollback.patch \
+            tab5-touch.dtsi touch.config.fragment \
             microsd-spi.config.fragment microsd-required-config.txt \
             usb-host-boot-symbols.json > SHA256SUMS.txt)
           cat artifacts/SHA256SUMS.txt

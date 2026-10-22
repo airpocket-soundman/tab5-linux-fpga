@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/* Append after tab5-overrides.dtsi. This is a separate bus from the
+ * external keyboard bus on GPIO0/1. GPIO32 belongs to bank 1 offset 0.
+ */
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	i2c_system: i2c-system {
+		compatible = "i2c-gpio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		sda-gpios = <&gpio0 31 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN | GPIO_PULL_UP)>;
+		scl-gpios = <&gpio1 0 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN | GPIO_PULL_UP)>;
+		i2c-gpio,delay-us = <5>;
+		status = "okay";
+
+		touchscreen@55 {
+			compatible = "m5stack,tab5-st712x";
+			reg = <0x55>;
+			/* The driver reserves 0x43 and changes only its P5 bit.
+			 * A future shared expander driver must replace this quirk.
+			 */
+			m5stack,release-touch-reset;
+			touchscreen-size-x = <720>;
+			touchscreen-size-y = <1280>;
+		};
+	};
+};

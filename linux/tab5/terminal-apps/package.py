@@ -12,6 +12,7 @@ from zipfile import ZipFile
 HELPERS = (
     'etc/init.d/S03loopback', 'usr/sbin/tab5-wifi', 'etc/profile',
     'etc/init.d/S30tab5-sdcard', 'etc/init.d/S99tab5-display',
+    'etc/init.d/S98tab5-touch-scroll',
 )
 
 
@@ -35,7 +36,7 @@ def payload(output, artifacts):
         shutil.rmtree(dest)
     (dest / 'usr/bin').mkdir(parents=True)
     manifest = {}
-    for app in ('vim', 'nano', 'sl', 'fpga-link'):
+    for app in ('vim', 'nano', 'sl', 'fpga-link', 'tab5-touch-scroll'):
         source = target / 'usr/bin' / app
         if source.is_symlink() or not source.is_file():
             raise SystemExit(f'Expected genuine application binary: {source}')
@@ -96,6 +97,10 @@ def install(rootfs, artifacts, overlay, storage="internal"):
                 target.unlink()
             shutil.copyfile(launcher, target)
             target.chmod(0o755)
+        # Console input must work even when the SD application tree is absent.
+        target = rootfs / 'usr/bin/tab5-touch-scroll'
+        shutil.copyfile(artifacts / 'payload/usr/bin/tab5-touch-scroll', target)
+        target.chmod(0o755)
     else:
         raise SystemExit('storage must be internal or sd')
     for name in HELPERS:

@@ -1,0 +1,8 @@
+# Polled ST7121/ST7123 touch on the Tab5 internal GPIO31/32 I2C bus.
+# Existing framebuffer and tty1 configuration is retained separately.
+CONFIG_INPUT=y
+CONFIG_INPUT_EVDEV=y
+CONFIG_INPUT_TOUCHSCREEN=y
+CONFIG_TOUCHSCREEN_TAB5_ST712X=y
+CONFIG_I2C=y
+CONFIG_I2C_GPIO=y

@@ -95,6 +95,12 @@ apps() {
         -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 \
         '-Wl,-elf2flt=-r -s32768' \
         -o "$output/target/usr/bin/fpga-link" "$repo/tools/fpga-link/fpga_link.c"
+    "$output/host/bin/riscv32-buildroot-linux-uclibc-gcc" \
+        -std=c11 -Wall -Wextra -Werror -Os -fPIC -static \
+        -march=rv32imac_zicsr_zifencei -mabi=ilp32 \
+        '-Wl,-elf2flt=-r -s32768' \
+        -o "$output/target/usr/bin/tab5-touch-scroll" \
+        "$repo/tools/tab5-console/tab5-touch-scroll.c"
     python3 "$script_dir/package.py" "$output" "$artifacts"
     mkdir -p "$artifacts/licenses"
     cp "$source_dir/package/vim/vim.mk" "$source_dir/package/nano/nano.mk" \

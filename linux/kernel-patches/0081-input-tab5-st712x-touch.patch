@@ -1,0 +1,250 @@
+From: Tab5 Linux FPGA maintainers
+Subject: [PATCH] input: add polled Tab5 ST7121/ST7123 touchscreen
+
+Implement the published Tab5 ST712x register protocol as a single-contact
+input device with ABS_X/Y, BTN_TOUCH and INPUT_PROP_DIRECT. Poll only when
+an input consumer opens the device. Coordinates remain in portrait axes;
+userspace maps them to the console rotation for swipe gestures.
+
+The board-specific reset quirk reserves the currently unmanaged expander
+at 0x43, releases P5 without asserting reset and preserves all other bits.
+An existing owner causes probe failure instead of silently sharing state.
+The boot shim and LCD reset P4 are unchanged. A later shared expander
+GPIO driver should replace this board quirk.
+
+Hardware/register reference: Espressif Tab5 BSP 1.3.2, esp_lcd_touch_st7123.
+This is an independent GPL Linux implementation of those register facts.
+Linux touch operation still requires hardware verification.
+
+diff --git a/drivers/input/touchscreen/Kconfig b/drivers/input/touchscreen/Kconfig
+--- a/drivers/input/touchscreen/Kconfig
++++ b/drivers/input/touchscreen/Kconfig
+@@ -1424,4 +1424,13 @@
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called himax_hx83112b.
+ 
++config TOUCHSCREEN_TAB5_ST712X
++	tristate "M5Stack Tab5 ST7121/ST7123 polled touchscreen"
++	depends on I2C
++	help
++	  Single-contact input for the ST712x touch controller at 0x55 on
++	  the M5Stack Tab5 internal I2C bus. The optional board quirk
++	  reserves PI4IOE5V6408 address 0x43 and releases touch reset P5
++	  while preserving every other expander bit. Polls at 40 ms.
++
+ endif
+diff --git a/drivers/input/touchscreen/Makefile b/drivers/input/touchscreen/Makefile
+--- a/drivers/input/touchscreen/Makefile
++++ b/drivers/input/touchscreen/Makefile
+@@ -120,3 +120,4 @@
+ obj-$(CONFIG_TOUCHSCREEN_IQS7211)	+= iqs7211.o
+ obj-$(CONFIG_TOUCHSCREEN_ZINITIX)	+= zinitix.o
+ obj-$(CONFIG_TOUCHSCREEN_HIMAX_HX83112B)	+= himax_hx83112b.o
++obj-$(CONFIG_TOUCHSCREEN_TAB5_ST712X) += tab5-st712x.o
+diff --git a/drivers/input/touchscreen/tab5-st712x.c b/drivers/input/touchscreen/tab5-st712x.c
+new file mode 100644
+--- /dev/null
++++ b/drivers/input/touchscreen/tab5-st712x.c
+@@ -0,0 +1,202 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * M5Stack Tab5 ST7121/ST7123 single-contact touchscreen, polled over I2C.
++ * Register layout follows the published Espressif Tab5 BSP 1.3.2 touch
++ * protocol: 16-bit big-endian address, seven bytes per contact, valid bit
++ * 7, 14-bit X and 16-bit Y. This is an independent Linux implementation.
++ * No GPIO IRQ or multitouch contact tracking is required for console swipes.
++ */
++#include <linux/delay.h>
++#include <linux/i2c.h>
++#include <linux/input.h>
++#include <linux/input/touchscreen.h>
++#include <linux/module.h>
++#include <linux/mod_devicetable.h>
++#include <linux/property.h>
++#include <linux/slab.h>
++
++#define TAB5_ST_MAX_CONTACTS 10
++#define TAB5_ST_REPORT_BYTES 7
++
++struct tab5_st712x {
++	struct i2c_client *client;
++	struct input_dev *input;
++	struct touchscreen_properties prop;
++	u8 contacts;
++};
++
++static int tab5_st_read(struct i2c_client *client, u16 reg, void *buf, u16 len)
++{
++	u8 address[2] = { reg >> 8, reg & 0xff };
++	struct i2c_msg messages[] = {
++		{ .addr = client->addr, .len = sizeof(address), .buf = address },
++		{ .addr = client->addr, .flags = I2C_M_RD, .len = len, .buf = buf },
++	};
++	int ret = i2c_transfer(client->adapter, messages, ARRAY_SIZE(messages));
++
++	return ret == ARRAY_SIZE(messages) ? 0 : ret < 0 ? ret : -EIO;
++}
++
++/* The Tab5 has no Linux driver for PI4IOE5V6408 yet. Reserve the address
++ * explicitly and preserve every other expander bit, including LCD reset P4.
++ * Never assert P5 reset: a previously running touch controller stays running.
++ */
++static int tab5_st_release_reset(struct i2c_client *touch)
++{
++	struct i2c_client *expander;
++	int dir, out, highz, ret;
++	const u8 mask = BIT(5);
++
++	if (!device_property_read_bool(&touch->dev, "m5stack,release-touch-reset"))
++		return 0;
++	expander = devm_i2c_new_dummy_device(&touch->dev, touch->adapter, 0x43);
++	if (IS_ERR(expander))
++		return dev_err_probe(&touch->dev, PTR_ERR(expander),
++				     "cannot reserve touch-reset expander\n");
++	dir = i2c_smbus_read_byte_data(expander, 0x03);
++	if (dir < 0)
++		return dir;
++	out = i2c_smbus_read_byte_data(expander, 0x05);
++	if (out < 0)
++		return out;
++	highz = i2c_smbus_read_byte_data(expander, 0x07);
++	if (highz < 0)
++		return highz;
++	if ((dir & mask) && (out & mask) && !(highz & mask))
++		return 0;
++	ret = i2c_smbus_write_byte_data(expander, 0x05, out | mask);
++	if (ret < 0)
++		return ret;
++	ret = i2c_smbus_write_byte_data(expander, 0x07, highz & ~mask);
++	if (ret < 0)
++		return ret;
++	ret = i2c_smbus_write_byte_data(expander, 0x03, dir | mask);
++	if (ret < 0)
++		return ret;
++	msleep(120);
++	return 0;
++}
++
++static void tab5_st_release(struct input_dev *input)
++{
++	input_report_key(input, BTN_TOUCH, 0);
++	input_sync(input);
++}
++
++static void tab5_st_poll(struct input_dev *input)
++{
++	struct tab5_st712x *touch = input_get_drvdata(input);
++	u8 status, report[TAB5_ST_MAX_CONTACTS * TAB5_ST_REPORT_BYTES];
++	unsigned int i, x, y;
++	int ret;
++
++	ret = tab5_st_read(touch->client, 0x0010, &status, 1);
++	if (ret || !(status & BIT(3)))
++		goto release;
++	ret = tab5_st_read(touch->client, 0x0014, report,
++			   touch->contacts * TAB5_ST_REPORT_BYTES);
++	if (ret)
++		goto release;
++	for (i = 0; i < touch->contacts; i++) {
++		const u8 *point = report + i * TAB5_ST_REPORT_BYTES;
++
++		if (!(point[0] & BIT(7)))
++			continue;
++		x = ((point[0] & 0x3f) << 8) | point[1];
++		y = (point[2] << 8) | point[3];
++		if (x > touch->prop.max_x || y > touch->prop.max_y)
++			continue;
++		touchscreen_report_pos(input, &touch->prop, x, y, false);
++		input_report_key(input, BTN_TOUCH, 1);
++		input_sync(input);
++		return;
++	}
++release:
++	/* Also release after I2C errors so a swipe cannot remain stuck down. */
++	tab5_st_release(input);
++}
++
++static int tab5_st_probe(struct i2c_client *client)
++{
++	struct device *dev = &client->dev;
++	struct tab5_st712x *touch;
++	struct input_dev *input;
++	u8 firmware, info[5];
++	unsigned int max_x, max_y;
++	int ret;
++
++	if (!i2c_check_functionality(client->adapter,
++		I2C_FUNC_I2C | I2C_FUNC_SMBUS_BYTE_DATA))
++		return -EOPNOTSUPP;
++	ret = tab5_st_release_reset(client);
++	if (ret)
++		return dev_err_probe(dev, ret, "cannot release touch reset\n");
++	ret = tab5_st_read(client, 0x0000, &firmware, 1);
++	if (ret)
++		return dev_err_probe(dev, ret, "cannot read touch firmware\n");
++	if (firmware != 1 && firmware != 3)
++		return dev_err_probe(dev, -ENODEV,
++				     "unsupported touch firmware %u\n", firmware);
++	ret = tab5_st_read(client, 0x0005, info, sizeof(info));
++	if (ret)
++		return dev_err_probe(dev, ret, "cannot read touch geometry\n");
++	max_x = (info[0] << 8) | info[1];
++	max_y = (info[2] << 8) | info[3];
++	if (!max_x || !max_y || !info[4] || info[4] > TAB5_ST_MAX_CONTACTS)
++		return dev_err_probe(dev, -EINVAL, "invalid touch geometry\n");
++	touch = devm_kzalloc(dev, sizeof(*touch), GFP_KERNEL);
++	if (!touch)
++		return -ENOMEM;
++	input = devm_input_allocate_device(dev);
++	if (!input)
++		return -ENOMEM;
++	touch->client = client;
++	touch->input = input;
++	touch->contacts = info[4];
++	input->name = "Tab5 ST712x Touchscreen";
++	input->id.bustype = BUS_I2C;
++	input_set_drvdata(input, touch);
++	input_set_capability(input, EV_KEY, BTN_TOUCH);
++	__set_bit(INPUT_PROP_DIRECT, input->propbit);
++	input_set_abs_params(input, ABS_X, 0, max_x - 1, 0, 0);
++	input_set_abs_params(input, ABS_Y, 0, max_y - 1, 0, 0);
++	touchscreen_parse_properties(input, false, &touch->prop);
++	ret = input_setup_polling(input, tab5_st_poll);
++	if (ret)
++		return ret;
++	input_set_poll_interval(input, 40);
++	input_set_min_poll_interval(input, 20);
++	input_set_max_poll_interval(input, 200);
++	ret = input_register_device(input);
++	if (ret)
++		return ret;
++	dev_info(dev, "firmware %u, %u contacts, %ux%u, polling 40 ms\n",
++		 firmware, touch->contacts, touch->prop.max_x + 1,
++		 touch->prop.max_y + 1);
++	return 0;
++}
++
++static const struct of_device_id tab5_st_of_match[] = {
++	{ .compatible = "m5stack,tab5-st712x" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, tab5_st_of_match);
++
++static const struct i2c_device_id tab5_st_ids[] = {
++	{ "tab5-st712x" },
++	{ }
++};
++MODULE_DEVICE_TABLE(i2c, tab5_st_ids);
++
++static struct i2c_driver tab5_st_driver = {
++	.driver = {
++		.name = "tab5-st712x",
++		.of_match_table = tab5_st_of_match,
++	},
++	.probe = tab5_st_probe,
++	.id_table = tab5_st_ids,
++};
++module_i2c_driver(tab5_st_driver);
++
++MODULE_DESCRIPTION("M5Stack Tab5 ST7121/ST7123 polled touchscreen");
++MODULE_LICENSE("GPL");

@@ -1,0 +1,16 @@
+#!/bin/sh
+# Root-only VT control, no key or text injection.
+daemon=/usr/bin/tab5-touch-scroll
+pidfile=/run/tab5-touch-scroll.pid
+case "${1:-start}" in
+ start)
+  [ -x "$daemon" ] || exit 0
+  start-stop-daemon -S -b -m -p "$pidfile" -x "$daemon" -- x 1 32
+  ;;
+ stop)
+  start-stop-daemon -K -p "$pidfile" -x "$daemon"
+  rm -f "$pidfile"
+  ;;
+ restart) "$0" stop; "$0" start ;;
+ *) exit 2 ;;
+esac
