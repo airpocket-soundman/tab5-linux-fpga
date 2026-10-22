@@ -865,6 +865,7 @@ if [[ "${EASYSTICK_BOARD:-stamp-p4}" == tab5 ]]; then
 	patches+=(0074-easystick-esp32p4-dsi-mode-clock.patch)
 	patches+=(0075-drm-panel-sitronix-st7123.patch)
 	patches+=(0076-input-m5stack-tab5-keyboard.patch)
+	patches+=(0077-drm-panel-sitronix-st7121.patch)
 fi
 for patch_name in "${patches[@]}"; do
 	if [[ "$patch_name" == 0022-esp32p4-systimer-level-trigger.patch ||
@@ -902,6 +903,7 @@ for patch_name in "${patches[@]}"; do
 	      "$patch_name" == 0074-easystick-esp32p4-dsi-mode-clock.patch ||
 	      "$patch_name" == 0075-drm-panel-sitronix-st7123.patch ||
 	      "$patch_name" == 0076-input-m5stack-tab5-keyboard.patch ||
+	      "$patch_name" == 0077-drm-panel-sitronix-st7121.patch ||
 	      "$patch_name" == 0056-easystick-wdt-stacktrace.patch ||
 	      "$patch_name" == 0055-easystick-sdio-clock-attest.patch ||
 	      "$patch_name" == 0060-easystick-dw-mmc-tx-software-dto.patch ||
@@ -971,6 +973,14 @@ case "${EASYSTICK_BOARD:-stamp-p4}" in
 	tab5)
 		cat -- "${firmware_root}/linux/dts/tab5-overrides.dtsi" \
 			>>"${dts_stage}/espressif/easystick-stamp-p4.dts"
+		case "${TAB5_LCD_PANEL:-st7123}" in
+			st7123) ;;
+			st7121)
+				sed -i 's/"sitronix,st7123"/"sitronix,st7121"/' \
+					"${dts_stage}/espressif/easystick-stamp-p4.dts"
+				;;
+			*) echo "unsupported TAB5_LCD_PANEL: ${TAB5_LCD_PANEL}" >&2; exit 2 ;;
+		esac
 		;;
 	*) echo "unsupported EASYSTICK_BOARD: ${EASYSTICK_BOARD}" >&2; exit 2 ;;
 esac

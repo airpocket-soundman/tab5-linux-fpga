@@ -1,0 +1,101 @@
+# Fast display iteration using the already built, patched kernel source.
+# Debian's cross compiler may produce an Image incompatible with the
+# esp32_sdio.ko shipped in the original rootfs; use USB serial for testing.
+name: tab5-panel-build
+on:
+  push:
+    branches: [codex/st7121-display]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  kernel:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ARCH: riscv
+      CROSS_COMPILE: riscv64-linux-gnu-
+      KIT_RUN_ID: '39729147095'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install kernel build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc-riscv64-linux-gnu build-essential bc bison flex \
+            libssl-dev libelf-dev device-tree-compiler zstd python3 cpio kmod
+      - name: Download baseline kernel kit
+        uses: actions/download-artifact@v4
+        with:
+          name: tab5-kernel-kit
+          run-id: ${{ env.KIT_RUN_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: kit
+      - name: Prepare ST7121 kernel and device tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/obj artifacts
+          tar --zstd -xf kit/linux-tree.tar.zst -C work
+          test -f work/linux-custom/Makefile
+          cp kit/kernel.config work/obj/.config
+          patch --batch --forward -d work/linux-custom -p1 \
+            < linux/kernel-patches/0077-drm-panel-sitronix-st7121.patch
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('work/linux-custom/arch/riscv/boot/dts/espressif/easystick-stamp-p4.dts')
+          text = path.read_text()
+          old = 'compatible = "sitronix,st7123";'
+          if text.count(old) != 1:
+              raise SystemExit('Expected exactly one ST7123 panel node in kit DTS')
+          path.write_text(text.replace(old, 'compatible = "sitronix,st7121";'))
+          PY
+          {
+            printf 'source_commit=%s\n' "$GITHUB_SHA"
+            printf 'baseline_kit_run=%s\n' "$KIT_RUN_ID"
+            printf 'kernel_flash_offset=0x90000\n'
+            printf 'dtb_flash_offset=0xf10000\n'
+            printf 'module_compatibility=unverified_with_baseline_rootfs\n'
+            riscv64-linux-gnu-gcc --version
+            sha256sum kit/kernel.config kit/linux-tree.tar.zst \
+              linux/kernel-patches/0077-drm-panel-sitronix-st7121.patch
+          } > artifacts/build-info.txt
+      - name: Build kernel and device tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C work/linux-custom O="$GITHUB_WORKSPACE/work/obj" olddefconfig \
+            2>&1 | tee artifacts/configure.log
+          make -C work/linux-custom O="$GITHUB_WORKSPACE/work/obj" \
+            -j"$(nproc)" Image dtbs 2>&1 | tee artifacts/build.log
+      - name: Verify and package kernel artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=work/obj/arch/riscv/boot/Image
+          dtb=work/obj/arch/riscv/boot/dts/espressif/easystick-stamp-p4.dtb
+          test -s "$image"
+          test -s "$dtb"
+          image_size=$(stat -c %s "$image")
+          dtb_size=$(stat -c %s "$dtb")
+          (( image_size <= 0x780000 )) || { echo "Image exceeds kernel partition" >&2; exit 1; }
+          (( dtb_size <= 0x10000 )) || { echo "DTB exceeds dtb partition" >&2; exit 1; }
+          dtc -I dtb -O dts "$dtb" -o artifacts/easystick-stamp-p4.dts
+          grep -Fq 'sitronix,st7121' artifacts/easystick-stamp-p4.dts
+          cp "$image" artifacts/Image
+          cp "$dtb" artifacts/easystick-stamp-p4.dtb
+          cp work/obj/.config artifacts/kernel.config
+          cp linux/kernel-patches/0077-drm-panel-sitronix-st7121.patch artifacts/
+          printf 'Image_bytes=%s\nDTB_bytes=%s\n' "$image_size" "$dtb_size" \
+            >> artifacts/build-info.txt
+          (cd artifacts && sha256sum Image easystick-stamp-p4.dtb kernel.config \
+            0077-drm-panel-sitronix-st7121.patch > SHA256SUMS.txt)
+          cat artifacts/SHA256SUMS.txt
+      - name: Upload kernel and diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tab5-st7121-kernel
+          path: artifacts/
+          if-no-files-found: warn
