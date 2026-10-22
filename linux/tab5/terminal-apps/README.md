@@ -51,3 +51,8 @@ and source checksums are pinned by the selected Buildroot commit and its
 package metadata. The source build and local Vim patch are reproducible
 from this directory. See generated logs and `applications.json` for binary
 hashes, sizes, and bFLT stack allocations.
+
+Vim requires a 256 KiB bFLT stack: the 64 KiB build drew its first screen
+but crashed before accepting interactive input. With only that header field
+changed to 256 KiB, SSH PTY editing, SD save/readback and normal exit passed.
+Nano uses 64 KiB and sl/fpga-link use 32 KiB. See the hardware journal.

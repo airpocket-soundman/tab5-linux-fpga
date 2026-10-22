@@ -45,7 +45,7 @@ def payload(output, artifacts):
         header = struct.unpack('>4s15I', data[:64])
         if header[1] != 4 or header[9] & 0x0c:
             raise SystemExit(f'Unexpected bFLT revision/compression: {app}')
-        stack = 65536 if app in ('vim', 'nano') else 32768
+        stack = 262144 if app == 'vim' else (65536 if app == 'nano' else 32768)
         struct.pack_into('>I', data, 24, stack)
         binary = dest / 'usr/bin' / app
         binary.write_bytes(data)
