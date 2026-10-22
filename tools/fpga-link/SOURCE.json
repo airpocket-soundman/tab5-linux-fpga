@@ -2,17 +2,17 @@
   "repository": "https://github.com/airpocket-soundman/tab5-fpga-gpu",
   "commit": "147a2154112f9fe4b213567d736f2bece6e9742b",
   "source_files_last_commit": "a6ae7a1b00b32b63c09b6b608f5c9f2f296d2564",
-  "license": "No repository LICENSE or file-level SPDX/license declaration was present for these two upstream files at the cited revision. Vendored unchanged under the user-authorized reuse; no new upstream license grant or relicensing is asserted. New implementation files carry their own SPDX identifiers.",
+  "license": "No repository LICENSE or file-level SPDX/license declaration was present for these two upstream files at the cited revision. Vendored unchanged under the compatibility review of the related repository; no new upstream license grant or relicensing is asserted. New implementation files carry their own SPDX identifiers.",
   "files": [
     {
       "upstream_path": "bringup/tab5/main/link_protocol.h",
       "local_path": "vendor/link_protocol.h",
-      "sha256": "3a44f3d7f533718f6e37744b5431876843b19b973c313b5968806107575ab4b1"
+      "sha256": "50d784e90dd6fcf298a95c8d0074497dd0f35b8570364743331bd074fe55e184"
     },
     {
       "upstream_path": "bringup/tests/link_vectors.json",
       "local_path": "vendor/link_vectors.json",
-      "sha256": "20993e7583dcf60ffb5934956972c821985072674ada5646ad417fd742520356"
+      "sha256": "8b1d8e2a9339ffcee6c8dfcb015786e170506c257c2209dea6f7901058e0d998"
     }
   ]
 }
