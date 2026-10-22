@@ -1,0 +1,129 @@
+#!/bin/sh
+# Mount an existing SD filesystem only. Never partition, format or repair it.
+# This NOMMU BusyBox ash does not support set -u.
+umask 0022
+SYS_BLOCK=${TAB5_SD_SYS_BLOCK:-/sys/block}
+DEV_ROOT=${TAB5_SD_DEV_ROOT:-/dev}
+MOUNTS=${TAB5_SD_MOUNTS:-/proc/mounts}
+TARGET=${TAB5_SD_TARGET:-/mnt/sdcard}
+
+log() { echo "TAB5_SD: $*"; }
+block_node() { [ -b "$1" ]; }
+
+find_card() {
+ CARD=
+ for sd_path in "$SYS_BLOCK"/mmcblk*; do
+  [ -d "$sd_path" ] || continue
+  sd_name=${sd_path##*/}
+  # Exclude boot/RPMB devices and partitions, even if a fixture is malformed.
+  case "$sd_name" in mmcblk[0-9]*) ;; *) continue ;; esac
+  sd_number=${sd_name#mmcblk}
+  case "$sd_number" in ''|*[!0-9]*) continue ;; esac
+  sd_type= sd_removable= sd_size=
+  read -r sd_type < "$sd_path/device/type" 2>/dev/null || continue
+  [ "$sd_type" = SD ] || continue
+  read -r sd_removable < "$sd_path/removable" 2>/dev/null || continue
+  [ "$sd_removable" = 1 ] || continue
+  read -r sd_size < "$sd_path/size" 2>/dev/null || continue
+  case "$sd_size" in ''|*[!0-9]*) continue ;; esac
+  [ "$sd_size" -gt 0 ] || continue
+  block_node "$DEV_ROOT/$sd_name" || continue
+  CARD="$DEV_ROOT/$sd_name"
+  if [ -f "$sd_path/${sd_name}p1/partition" ]; then
+   block_node "$DEV_ROOT/${sd_name}p1" || { CARD=; continue; }
+   CARD="$DEV_ROOT/${sd_name}p1"
+  fi
+  return 0
+ done
+ return 1
+}
+
+mount_state() {
+ SOURCE= FSTYPE= OPTIONS=
+ while read -r sd_source sd_target sd_fs sd_options sd_rest; do
+  [ "$sd_target" = "$TARGET" ] || continue
+  SOURCE=$sd_source FSTYPE=$sd_fs OPTIONS=$sd_options
+  return 0
+ done < "$MOUNTS"
+ return 1
+}
+
+valid_mount() {
+ mount_state || return 1
+ [ "$SOURCE" = "$CARD" ] || return 1
+ case "$FSTYPE" in vfat|exfat) return 0 ;; *) return 1 ;; esac
+}
+
+report_mount() {
+ if ! valid_mount; then
+  log 'mount verification failed; application directories were not created'
+  return 0
+ fi
+ case ",$OPTIONS," in
+  *,rw,*)
+   # Never create storage paths until this exact SD device is mounted RW.
+   if mkdir -p "$TARGET/tab5/data" "$TARGET/tab5/logs" "$TARGET/tab5/cache"; then
+    log "mounted read-write: $CARD on $TARGET ($FSTYPE)"
+   else
+    log "mounted but directory creation failed: $CARD on $TARGET"
+   fi
+   ;;
+  *) log "mounted read-only: $CARD on $TARGET; application directories were not created" ;;
+ esac
+}
+
+start() {
+ sd_wait=0
+ until find_card; do
+  [ "$sd_wait" -lt 10 ] || { log 'no removable SD card; continuing without SD storage'; return 0; }
+  sleep 1
+  sd_wait=$((sd_wait + 1))
+ done
+ if mount_state; then
+  if [ "$SOURCE" = "$CARD" ]; then report_mount; else log 'mount point already in use; leaving it unchanged'; fi
+  return 0
+ fi
+ mkdir -p "$TARGET" || { log 'mount point unavailable; continuing without SD storage'; return 0; }
+ for sd_mode in rw ro; do
+  for sd_format in vfat exfat; do
+   if mount -t "$sd_format" -o "$sd_mode,noatime,uid=1000,gid=1000,umask=0022" "$CARD" "$TARGET" 2>/dev/null; then
+    report_mount
+    return 0
+   fi
+   # A reported failure must not cause another mount over an existing mount.
+   if mount_state; then
+    log 'mount appeared during probe; leaving it unchanged'
+    return 0
+   fi
+  done
+ done
+ log "no mountable FAT/exFAT filesystem on $CARD; no formatting performed"
+ return 0
+}
+
+stop() {
+ mount_state || { log 'not mounted'; return 0; }
+ # Only unmount the current, positively identified removable SD card.
+ find_card && valid_mount || { log 'mount ownership could not be verified; not unmounting'; return 0; }
+ if umount "$TARGET"; then
+  log 'unmounted'
+ else
+  log 'unmount failed or busy; leaving mounted'
+ fi
+ return 0
+}
+
+case "${1:-start}" in
+ start) start ;;
+ stop) stop ;;
+ restart) stop; start ;;
+ status)
+  if find_card && valid_mount; then
+   log "$CARD on $TARGET ($FSTYPE, $OPTIONS)"
+  else
+   log 'no verified SD mount; storage paths are unavailable'
+  fi
+  ;;
+ *) echo "Usage: $0 {start|stop|restart|status}" >&2; exit 1 ;;
+esac
+exit 0

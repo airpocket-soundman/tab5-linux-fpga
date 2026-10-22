@@ -9,6 +9,8 @@ if [ "$PS1" ]; then
 	done < /proc/self/status
 	if [ "$_uid" = 0 ]; then
 		export PS1='# '
+		# Serial askfirst shells otherwise inherit HOME=/ from init.
+		export HOME='/root'
 	else
 		export PS1='$ '
 	fi

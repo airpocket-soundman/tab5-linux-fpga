@@ -22,6 +22,7 @@ rm -f "${TARGET_DIR}/usr/bin/getconf"
 for path in \
 	"${TARGET_DIR}/etc/init.d/S03loopback" \
 	"${TARGET_DIR}/etc/init.d/S05easystick-tmpfs" \
+	"${TARGET_DIR}/etc/init.d/S30tab5-sdcard" \
 	"${TARGET_DIR}/etc/init.d/S40network" \
 	"${TARGET_DIR}/etc/init.d/S45bootsync" \
 	"${TARGET_DIR}/etc/init.d/S85easystick-ssh" \
@@ -41,6 +42,9 @@ for path in \
 done
 
 chmod 0755 "${TARGET_DIR}/etc/init.d/S03loopback"
+chmod 0755 "${TARGET_DIR}/etc/init.d/S30tab5-sdcard"
+# The root filesystem is read-only at runtime, so create its mount point here.
+mkdir -p "${TARGET_DIR}/mnt/sdcard"
 chmod 0755 "${TARGET_DIR}/usr/sbin/tab5-wifi"
 chmod 0755 "${TARGET_DIR}/etc/init.d/S05easystick-tmpfs"
 chmod 0755 "${TARGET_DIR}/etc/init.d/S40network"
