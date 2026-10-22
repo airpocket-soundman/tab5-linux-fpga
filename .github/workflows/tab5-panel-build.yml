@@ -10,6 +10,7 @@ on:
       - 'linux/kernel-patches/0077-drm-panel-sitronix-st7121.patch'
       - 'linux/kernel-patches/0078-dwc2-esp32p4-usb20-host-pio.patch'
       - 'linux/kernel-patches/0079-spi-gpio-honor-delay.patch'
+      - 'linux/kernel-patches/0080-physmap-rom-preserve-resource-size.patch'
       - 'linux/dts/tab5-usb-host.dtsi'
       - 'linux/dts/tab5-microsd-spi.dtsi'
       - 'linux/tab5/usb-host-boot-symbols.json'
@@ -55,6 +56,8 @@ jobs:
             < linux/kernel-patches/0078-dwc2-esp32p4-usb20-host-pio.patch
           patch --batch --forward -d work/linux-custom -p1 \
             < linux/kernel-patches/0079-spi-gpio-honor-delay.patch
+          patch --batch --forward -d work/linux-custom -p1 \
+            < linux/kernel-patches/0080-physmap-rom-preserve-resource-size.patch
           python3 - <<'PY'
           from pathlib import Path
           path = Path('work/linux-custom/arch/riscv/boot/dts/espressif/easystick-stamp-p4.dts')
@@ -106,6 +109,7 @@ jobs:
               linux/kernel-patches/0077-drm-panel-sitronix-st7121.patch \
               linux/kernel-patches/0078-dwc2-esp32p4-usb20-host-pio.patch \
               linux/kernel-patches/0079-spi-gpio-honor-delay.patch \
+              linux/kernel-patches/0080-physmap-rom-preserve-resource-size.patch \
               linux/dts/tab5-usb-host.dtsi linux/dts/tab5-microsd-spi.dtsi \
               linux/tab5/microsd-spi.config.fragment
           } > artifacts/build-info.txt
@@ -202,6 +206,7 @@ jobs:
           cp linux/kernel-patches/0077-drm-panel-sitronix-st7121.patch artifacts/
           cp linux/kernel-patches/0078-dwc2-esp32p4-usb20-host-pio.patch artifacts/
           cp linux/kernel-patches/0079-spi-gpio-honor-delay.patch artifacts/
+          cp linux/kernel-patches/0080-physmap-rom-preserve-resource-size.patch artifacts/
           cp linux/dts/tab5-usb-host.dtsi artifacts/
           cp linux/dts/tab5-microsd-spi.dtsi artifacts/
           cp linux/tab5/microsd-spi.config.fragment artifacts/
@@ -210,7 +215,8 @@ jobs:
           (cd artifacts && sha256sum Image easystick-stamp-p4.dtb kernel.config \
             0077-drm-panel-sitronix-st7121.patch \
             0078-dwc2-esp32p4-usb20-host-pio.patch \
-            0079-spi-gpio-honor-delay.patch tab5-usb-host.dtsi tab5-microsd-spi.dtsi \
+            0079-spi-gpio-honor-delay.patch \
+            0080-physmap-rom-preserve-resource-size.patch tab5-usb-host.dtsi tab5-microsd-spi.dtsi \
             microsd-spi.config.fragment microsd-required-config.txt \
             usb-host-boot-symbols.json > SHA256SUMS.txt)
           cat artifacts/SHA256SUMS.txt

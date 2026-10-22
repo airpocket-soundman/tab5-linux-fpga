@@ -868,6 +868,7 @@ if [[ "${EASYSTICK_BOARD:-stamp-p4}" == tab5 ]]; then
 	patches+=(0077-drm-panel-sitronix-st7121.patch)
 	patches+=(0078-dwc2-esp32p4-usb20-host-pio.patch)
 	patches+=(0079-spi-gpio-honor-delay.patch)
+	patches+=(0080-physmap-rom-preserve-resource-size.patch)
 fi
 for patch_name in "${patches[@]}"; do
 	if [[ "$patch_name" == 0022-esp32p4-systimer-level-trigger.patch ||
@@ -908,6 +909,7 @@ for patch_name in "${patches[@]}"; do
 	      "$patch_name" == 0077-drm-panel-sitronix-st7121.patch ||
 	      "$patch_name" == 0078-dwc2-esp32p4-usb20-host-pio.patch ||
 	      "$patch_name" == 0079-spi-gpio-honor-delay.patch ||
+	      "$patch_name" == 0080-physmap-rom-preserve-resource-size.patch ||
 	      "$patch_name" == 0056-easystick-wdt-stacktrace.patch ||
 	      "$patch_name" == 0055-easystick-sdio-clock-attest.patch ||
 	      "$patch_name" == 0060-easystick-dw-mmc-tx-software-dto.patch ||

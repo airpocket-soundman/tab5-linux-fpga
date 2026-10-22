@@ -1,0 +1,37 @@
+From: Tab5 Linux FPGA maintainers
+Subject: [PATCH] mtd: physmap: preserve the size of direct ROM resources
+
+The Tab5 boot shim exposes a 7 MiB read-only flash window as mtd-rom.
+physmap currently rounds this down to the highest power of two, registering
+only 4 MiB. A SquashFS image larger than 4 MiB then cannot mount even though
+the flash partition and its mapped resource both cover the full image.
+
+Use the resource size unchanged only when map_rom was explicitly selected
+and no address-extension GPIOs are present. This includes the mtd-rom OF
+binding without changing CFI/JEDEC probes, fallback ROM probing, or GPIO
+bank-window calculations. The mapping never grows beyond its resource.
+
+map_rom already accepts map->size directly, including a non-power-of-two
+ROM resource. Its default erase size follows that size; the device remains
+read-only and no flash erase/write path is added.
+
+--- a/drivers/mtd/maps/physmap-core.c
++++ b/drivers/mtd/maps/physmap-core.c
+@@ -519,9 +519,14 @@
+ 			info->maps[i].phys = res->start;
+ 
+ 		info->win_order = fls64(resource_size(res)) - 1;
+-		info->maps[i].size = BIT(info->win_order +
+-					 (info->gpios ?
+-					  info->gpios->ndescs : 0));
++		/* A plain ROM region need not have a power-of-two size. */
++		if (!info->gpios && info->probe_type &&
++		    !strcmp(info->probe_type, "map_rom"))
++			info->maps[i].size = resource_size(res);
++		else
++			info->maps[i].size = BIT(info->win_order +
++						 (info->gpios ?
++						  info->gpios->ndescs : 0));
+ 
+ 		info->maps[i].map_priv_1 = (unsigned long)dev;
+ 
