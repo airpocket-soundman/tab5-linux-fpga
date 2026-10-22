@@ -26,7 +26,7 @@ Linuxソースを研究リポジトリへ丸ごとコピーせず、このフォ
 - 2026-10-22、ST7121用パネル初期化を追加し、ビルドと実機の液晶表示・1コア起動・シリアルシェル・Wi-Fi SoftAP起動を確認した。記録は [初回起動記録](BRINGUP_2026-10-22.md)。その後、Wi-Fi STA接続・再起動後の設定維持、PCからm5ユーザーへのSSH鍵認証ログイン、SSHクライアントとサーバーの接続、16GB FAT32 microSD認識と書き込みも確認した。USB root hub/HIDドライバは起動するが、実キーボードがないため入力は未検証で、L0全体は未完了。FPGA通信と転送性能は未検証。
 - 基板なしの準備として、既存の接続試験v0と互換のcodec・mock CLI・故障注入テストを追加した。[基板なし準備](FPGA_LINK_PREPARATION.md)参照。PC上の照合であり、Tab5やFPGAの物理通信・L2完了を意味しない。
 - Vim tiny・nano tinyのSSH端末での編集・microSD保存、SLの画面更新・正常終了を確認した。Vimのstackは実機で256KiBを必要とした。0080でphysmapのROMサイズ切り下げを修正し、Linuxから7MiB全域と大きいrootfsの起動を確認した。使い方は[ターミナルアプリ](TERMINAL_APPLICATIONS.md)。
-- タッチ入力とtty1の128行履歴、NOMMU用BLE HIDホストを実験実装した。オフライン入力テストとbFLTビルドは成功し、実機入力は未検証。[開発記録](TOUCH_AND_BLUETOOTH.md)参照。
+- タッチ入力とtty1の128行履歴、NOMMU用BLE HIDホストを実験実装した。オフライン入力テストとbFLTビルドは成功。実機でタッチFW認識と履歴表示/復帰を確認し、指スワイプとBT入力は未検証。[開発記録](TOUCH_AND_BLUETOOTH.md)参照。
 - 以下の既存READMEの動作記載は上流による報告であり、このフォークでの検証記録ではない。
 
 上流のTab5版はLinux 6.18系、1コア起動、ST7123液晶、Tab5 Keyboard、Wi-Fi、SSHを対象とする。ILI9881CとST7121の液晶は未対応。詳細は [Tab5移植資料](tab5.md) と [日本語README](../README.ja.md) を参照する。
