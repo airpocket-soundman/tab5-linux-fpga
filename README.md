@@ -1,5 +1,11 @@
 # Tab5 Linux
 
+## airpocket-soundman fork purpose
+
+This fork develops Tab5 NOMMU Linux and Linux drivers for communication with a Tang Primer 20K FPGA. The repository is named **tab5-linux-fpga**. Research plans, FPGA logic and evaluation applications live in [esp32p4-linux-fpga-memory](https://github.com/airpocket-soundman/esp32p4-linux-fpga-memory).
+
+Read [開発目的と引き継ぎ](docs/DEVELOPMENT_GOALS.md) first for scope, milestones and the next tasks. This fork has not yet been built or tested on hardware; the original documentation below describes upstream results. The immediate fork source is [Riti0208/tab5-linux](https://github.com/Riti0208/tab5-linux).
+
 [日本語](README.ja.md)
 
 Native RISC-V NOMMU Linux 6.18 on the **M5Stack Tab5** (ESP32-P4 + ESP32-C6):

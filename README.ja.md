@@ -1,5 +1,11 @@
 # Tab5 Linux
 
+## このフォークの目的
+
+**tab5-linux-fpga** は、Tab5 NOMMU Linuxを基盤にTang Primer 20Kとの通信ドライバとOSビルド環境を開発します。研究計画・FPGA回路・評価アプリは [esp32p4-linux-fpga-memory](https://github.com/airpocket-soundman/esp32p4-linux-fpga-memory) で管理します。
+
+着手前に [開発目的と引き継ぎ](docs/DEVELOPMENT_GOALS.md) を読んでください。このフォークでのビルド・実機検証はまだ行っていません。以下の既存説明は上流の動作報告です。直接のフォーク元は [Riti0208/tab5-linux](https://github.com/Riti0208/tab5-linux) です。
+
 [English](README.md)
 
 **M5Stack Tab5**（ESP32-P4 + ESP32-C6）で、RISC-V の NOMMU Linux 6.18 をネイティブに動かします。5 インチの画面にコンソールを出して、**Tab5 Keyboard** から操作できます。Wi-Fi、SSH、BusyBox、MicroPython も使えます。エミュレータではなく、P4 の RISC-V コアの上でカーネルが直接動いています。
