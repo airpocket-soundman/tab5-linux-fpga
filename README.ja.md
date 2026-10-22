@@ -4,7 +4,7 @@
 
 **tab5-linux-fpga** は、Tab5 NOMMU Linuxを基盤にTang Primer 20Kとの通信ドライバとOSビルド環境を開発します。研究計画・FPGA回路・評価アプリは [esp32p4-linux-fpga-memory](https://github.com/airpocket-soundman/esp32p4-linux-fpga-memory) で管理します。
 
-着手前に [開発目的と引き継ぎ](docs/DEVELOPMENT_GOALS.md) を読んでください。2026-10-22、このフォークでST7121液晶表示、1コアLinux起動、USBシリアルシェル、Wi-Fi SoftAP起動を実機確認しました。使用イメージと残課題は [初回起動記録](docs/BRINGUP_2026-10-22.md) を参照してください。USB-Aキーボード対応は実験段階で、実キーボードによる入力は未検証です。以下の既存説明は上流の動作報告です。直接のフォーク元は [Riti0208/tab5-linux](https://github.com/Riti0208/tab5-linux) です。
+着手前に [開発目的と引き継ぎ](docs/DEVELOPMENT_GOALS.md) を読んでください。2026-10-22、このフォークでST7121液晶表示、1コアLinux起動、USBシリアルシェル、Wi-Fi SoftAP/STA接続、PCからのSSH鍵認証ログイン、16GB FAT32 microSDの認識と書き込みを実機確認しました。使用イメージと残課題は [初回起動記録](docs/BRINGUP_2026-10-22.md) を参照してください。USB-Aキーボード対応は実験段階で、実キーボードによる入力は未検証です。以下の既存説明は上流の動作報告です。直接のフォーク元は [Riti0208/tab5-linux](https://github.com/Riti0208/tab5-linux) です。
 
 [English](README.md)
 

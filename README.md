@@ -4,7 +4,7 @@
 
 This fork develops Tab5 NOMMU Linux and Linux drivers for communication with a Tang Primer 20K FPGA. The repository is named **tab5-linux-fpga**. Research plans, FPGA logic and evaluation applications live in [esp32p4-linux-fpga-memory](https://github.com/airpocket-soundman/esp32p4-linux-fpga-memory).
 
-Read [開発目的と引き継ぎ](docs/DEVELOPMENT_GOALS.md) first for scope, milestones and the next tasks. On 2026-10-22 this fork verified ST7121 display output, one-core Linux boot, the USB serial shell and Wi-Fi SoftAP startup. See [the bring-up record](docs/BRINGUP_2026-10-22.md) for exact builds and unverified items. USB-A keyboard support is experimental; physical keyboard input has not been tested. The original documentation below describes upstream results. The immediate fork source is [Riti0208/tab5-linux](https://github.com/Riti0208/tab5-linux).
+Read [開発目的と引き継ぎ](docs/DEVELOPMENT_GOALS.md) first for scope, milestones and the next tasks. On 2026-10-22 this fork verified ST7121 display output, one-core Linux boot, the USB serial shell, Wi-Fi SoftAP/STA connectivity, SSH key-authenticated login from a PC, and detection and writes on a 16GB FAT32 microSD card. See [the bring-up record](docs/BRINGUP_2026-10-22.md) for exact builds and unverified items. USB-A keyboard support is experimental; physical keyboard input has not been tested. The original documentation below describes upstream results. The immediate fork source is [Riti0208/tab5-linux](https://github.com/Riti0208/tab5-linux).
 
 [日本語](README.ja.md)
 
