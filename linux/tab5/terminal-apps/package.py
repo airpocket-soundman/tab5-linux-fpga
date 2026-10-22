@@ -84,9 +84,16 @@ def baseline(folder):
 
 
 def install(rootfs, artifacts, overlay):
-    # Merge only the apps/terminfo and the current board helpers. Existing
-    # BusyBox, network daemons, firmware, users, and kernel modules stay intact.
-    shutil.copytree(artifacts / 'payload/usr', rootfs / 'usr', dirs_exist_ok=True)
+    # Keep the internal rootfs inside the observed 4 MiB Linux MTD window.
+    # Genuine binaries, terminfo and Vim defaults are deployed to microSD.
+    launcher = Path(__file__).with_name('launcher.sh')
+    for app in ('vim', 'nano', 'sl', 'fpga-link'):
+        target = rootfs / 'usr/bin' / app
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.is_symlink():
+            target.unlink()
+        shutil.copyfile(launcher, target)
+        target.chmod(0o755)
     for name in HELPERS:
         source = overlay / name
         target = rootfs / name

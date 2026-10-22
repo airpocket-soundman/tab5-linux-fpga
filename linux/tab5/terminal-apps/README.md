@@ -36,8 +36,13 @@ C mock test tool (no hardware backend), minimal Vim defaults, and terminfo, incl
 `vt102`, `linux`, `xterm`, and `xterm-256color`. It does not replace libc,
 BusyBox, `vi`, firmware, kernel modules, or network daemons. Current board
 network, SD, and display helpers are copied explicitly when repacking the
-verified baseline rootfs. The LZ4 rootfs must fit its 7 MiB flash partition;
-an oversized build fails and requires an explicit SD deployment choice.
+verified baseline rootfs. The physical rootfs partition is 7 MiB, but the current Linux MTD device
+exposes only 4 MiB. A 5.4 MiB rootfs failed to mount on hardware. CI therefore
+limits the internal rootfs to 4 MiB and installs only four launchers there.
+Deploy the payload `usr/` tree under `/mnt/sdcard/tab5/apps/` on the mounted
+card. The launchers verify the SD mount, set TERMINFO and VIMRUNTIME to the
+SD payload, and execute the genuine binaries. Without the card or payload
+they return a clear error. Do not flash the earlier oversized rootfs.
 
 The build records package licenses and recipes. Exact upstream versions
 and source checksums are pinned by the selected Buildroot commit and its

@@ -75,7 +75,7 @@ jobs:
             rootfs artifacts/terminal-apps linux/m3-lab/rootfs-overlay
           sudo mksquashfs rootfs artifacts/terminal-apps/rootfs.squashfs \
             -noappend -comp lz4 -b 131072 -Xhc
-          test "$(stat -c %s artifacts/terminal-apps/rootfs.squashfs)" -le $((0x700000))
+          test "$(stat -c %s artifacts/terminal-apps/rootfs.squashfs)" -le $((0x400000))
           unsquashfs -s artifacts/terminal-apps/rootfs.squashfs | tee artifacts/terminal-apps/rootfs-info.txt
           grep -q 'Compression lz4' artifacts/terminal-apps/rootfs-info.txt
           for path in etc/init.d/S03loopback usr/sbin/tab5-wifi etc/profile \
@@ -85,7 +85,7 @@ jobs:
           done
           for app in vim nano sl fpga-link; do
             unsquashfs -cat artifacts/terminal-apps/rootfs.squashfs "usr/bin/$app" \
-              | cmp - "artifacts/terminal-apps/payload/usr/bin/$app"
+              | cmp - linux/tab5/terminal-apps/launcher.sh
           done
           (cd artifacts/terminal-apps && sha256sum rootfs.squashfs \
             tab5-terminal-apps.tar.gz applications.json buildroot.config build-info.txt > SHA256SUMS.txt)
