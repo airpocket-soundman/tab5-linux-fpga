@@ -36,6 +36,13 @@ WINCHでプロンプトを再描画すると(4,0)となった。これによりV
 まだ書き込んでいない。古いカーネルでは履歴機能がないため、新しいhelper
 だけを入れても履歴は増えない。
 
+入力ツールCI39869279304と39869439768は成功。MGMT status/complete、
+HID/GATT探索、長いreport map、番号付き・番号なしUHID入力、不正通知を
+通信fixtureで確認した。タッチ処理は実daemonにsyscall mockを接続し、
+同じ座標の再タップ、SYN_DROPPED、EINTR、初期座標取得失敗後の再試行、
+極端な座標差の要求上限を確認した。BLE helperは101,216 bytes、stack64KiB。
+再構成rootfsは約5.27MiBで7MiB上限内。これらは実機入力の代わりにはならない。
+
 ## Bluetooth方針
 
 候補名はユーザー申告の`K68 BT5.0`。名称だけではBLE HIDか確定しない。
