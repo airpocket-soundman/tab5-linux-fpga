@@ -45,3 +45,23 @@ PC側の新しい`scp`でSFTPサーバーが見つからない場合は、`scp -
 現在のOSはBuildrootによるRV32IMAC・NOMMU・bFLT構成で、読み取り専用のSquashFSを使う。
 Debian系の`apt`で通常の`.deb`を追加する構成ではない。microSDの増設でも実行形式の制約は変わらない。
 必要なアプリは対応するBuildrootツールチェーンで作り、rootfsまたは追加ストレージへ配置する。
+
+## microSDのマウント
+
+実験用SPI対応イメージでは、起動時の`S30tab5-sdcard`が最大10秒待ち、既存のFAT/exFATを
+`/mnt/sdcard`へマウントする。第1パーティションがある場合はそれを優先する。
+フォーマットやパーティション変更は行わない。カードが未初期化の場合はマウント失敗として扱う。
+
+カードの種類が`SD`で容量があり、対応するブロックデバイスが存在することを確認する。
+Linuxが`removable=0`と報告しても、sysfsでTab5の`spi-microsd`コントローラー配下と確認できる
+SDカードは対象とする。C6のSDIO機器、eMMC、フラッシュMTDは対象にしない。
+
+```sh
+/etc/init.d/S30tab5-sdcard status
+/etc/init.d/S30tab5-sdcard start
+```
+
+読み書き可能な実マウントを確認した後だけ、`tab5/data`・`tab5/logs`・`tab5/cache`をカード内に
+作成する。ユーザー・グループは1000、マスクは0022、アクセス時刻の更新は無効。
+読み取り専用の場合やマウント失敗時にはこれらの保存先を作らず、RAMへの代替保存もしない。
+停止時は`/etc/init.d/S30tab5-sdcard stop`を実行する。使用中の場合は強制アンマウントしない。

@@ -23,7 +23,19 @@ find_card() {
   read -r sd_type < "$sd_path/device/type" 2>/dev/null || continue
   [ "$sd_type" = SD ] || continue
   read -r sd_removable < "$sd_path/removable" 2>/dev/null || continue
-  [ "$sd_removable" = 1 ] || continue
+  case "$sd_removable" in
+   1) ;;
+   0)
+    # Linux may mark an SPI SD block device non-removable. Only allow
+    # this exception for the board's explicit spi-microsd controller.
+    sd_device=$(readlink -f "$sd_path/device" 2>/dev/null) || continue
+    case "$sd_device" in
+     */spi-microsd/*/mmc_host/*) ;;
+     *) continue ;;
+    esac
+    ;;
+   *) continue ;;
+  esac
   read -r sd_size < "$sd_path/size" 2>/dev/null || continue
   case "$sd_size" in ''|*[!0-9]*) continue ;; esac
   [ "$sd_size" -gt 0 ] || continue
