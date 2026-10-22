@@ -134,7 +134,8 @@ The connected unit was identified as ST7121 (touch firmware ID 1), and a
 standalone ESP-IDF/BSP display test displayed successfully. The upstream
 ST7123-only Linux image booted through USB serial but its display stayed dark.
 Patch 0077 adds a separate `sitronix,st7121` panel variant using the BSP 1.3.2
-initialization sequence and timings. Linux hardware validation is pending.
+initialization sequence and timings. Linux display output on ST7121 was
+confirmed on 2026-10-22, together with one-core boot and the USB serial shell.
 
 For a full build select `EASYSTICK_BOARD=tab5 TAB5_LCD_PANEL=st7121`.
 The default remains `st7123`. The `tab5-panel-build` workflow rebuilds the
@@ -142,7 +143,11 @@ kernel and DTB from the recorded baseline kernel kit for faster display
 experiments; its output is not a complete flash image. See
 [the bring-up record](BRINGUP_2026-10-22.md) for exact images and results.
 
-- Only the ST7123 panel revision is supported; ILI9881C and ST7121 panels
+`TAB5_USB_HOST=1` additionally enables the experimental USB20 HS host,
+its boot-shim PHY/VBUS initialization, and USB HID support. Use a matching
+boot shim, kernel and DTB. A physical USB keyboard has not yet been tested.
+
+- Upstream: only the ST7123 panel revision is supported; ILI9881C and ST7121 panels
   need their own init tables.
 - `/boot/config.txt` edits are not saved on the Tab5 (no USB drive).
 - The keyboard reports firmware version 0; its INT line (GPIO50) is unused.

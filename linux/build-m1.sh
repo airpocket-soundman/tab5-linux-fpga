@@ -866,6 +866,7 @@ if [[ "${EASYSTICK_BOARD:-stamp-p4}" == tab5 ]]; then
 	patches+=(0075-drm-panel-sitronix-st7123.patch)
 	patches+=(0076-input-m5stack-tab5-keyboard.patch)
 	patches+=(0077-drm-panel-sitronix-st7121.patch)
+	patches+=(0078-dwc2-esp32p4-usb20-host-pio.patch)
 fi
 for patch_name in "${patches[@]}"; do
 	if [[ "$patch_name" == 0022-esp32p4-systimer-level-trigger.patch ||
@@ -904,6 +905,7 @@ for patch_name in "${patches[@]}"; do
 	      "$patch_name" == 0075-drm-panel-sitronix-st7123.patch ||
 	      "$patch_name" == 0076-input-m5stack-tab5-keyboard.patch ||
 	      "$patch_name" == 0077-drm-panel-sitronix-st7121.patch ||
+	      "$patch_name" == 0078-dwc2-esp32p4-usb20-host-pio.patch ||
 	      "$patch_name" == 0056-easystick-wdt-stacktrace.patch ||
 	      "$patch_name" == 0055-easystick-sdio-clock-attest.patch ||
 	      "$patch_name" == 0060-easystick-dw-mmc-tx-software-dto.patch ||
@@ -981,6 +983,10 @@ case "${EASYSTICK_BOARD:-stamp-p4}" in
 				;;
 			*) echo "unsupported TAB5_LCD_PANEL: ${TAB5_LCD_PANEL}" >&2; exit 2 ;;
 		esac
+		if [[ "${TAB5_USB_HOST:-0}" == 1 ]]; then
+			cat -- "${firmware_root}/linux/dts/tab5-usb-host.dtsi" \
+				>>"${dts_stage}/espressif/easystick-stamp-p4.dts"
+		fi
 		;;
 	*) echo "unsupported EASYSTICK_BOARD: ${EASYSTICK_BOARD}" >&2; exit 2 ;;
 esac
@@ -1112,6 +1118,10 @@ else
 		echo "UP kernel config gate failed: staged fragment enabled SMP" >&2
 		exit 1
 	fi
+fi
+if [[ "${EASYSTICK_BOARD:-stamp-p4}" == tab5 && "${TAB5_USB_HOST:-0}" == 1 ]]; then
+	# Apply after profile fragments, which select the legacy peripheral role.
+	cat "${firmware_root}/linux/tab5/usb-host.config.fragment" >>"${kernel_config_fragment}"
 fi
 cat >"${dts_stage}/espressif/Makefile" <<'EOF'
 # SPDX-License-Identifier: GPL-2.0-only

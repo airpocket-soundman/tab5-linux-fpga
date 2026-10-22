@@ -62,6 +62,10 @@
 #endif
 #ifdef EASYSTICK_BOARD_TAB5
 #include "tab5_power.h"
+#ifdef EASYSTICK_TAB5_USB_HOST
+#include "esp_private/periph_ctrl.h"
+#include "hal/usb_utmi_ll.h"
+#endif
 #endif
 
 #include "hal/usb_wrap_ll.h"
@@ -100,6 +104,20 @@ static void easystick_usb_otg_init(void)
 #endif
 
 static const char *TAG = "easystick-boot";
+
+#if defined(EASYSTICK_BOARD_TAB5) && defined(EASYSTICK_TAB5_USB_HOST)
+static void tab5_usb_hs_phy_init(void)
+{
+	/* ESP-IDF 5.5.3 UTMI defaults. Linux owns the DWC2 host and IRQs. */
+	PERIPH_RCC_ATOMIC() {
+		_usb_utmi_ll_enable_bus_clock(true);
+		_usb_utmi_ll_reset_register();
+	}
+	usb_utmi_ll_enable_precise_detection(true);
+	usb_utmi_ll_configure_ls(&USB_UTMI, true);
+	ESP_LOGI(TAG, "USB OTG 2.0 UTMI PHY enabled (low-speed support)");
+}
+#endif
 
 /* Patched ESP-IDF vectors.S C13 hook; must stay linked (zero = inert). */
 volatile uint32_t c13_redirect_pc IRAM_DATA_ATTR;
@@ -739,6 +757,10 @@ void app_main(void)
 #else
 	/* The panel's DSI init runs in Linux; it only needs reset and light. */
 	tab5_lcd_power_on();
+#ifdef EASYSTICK_TAB5_USB_HOST
+	if (tab5_usb_host_power_on())
+		tab5_usb_hs_phy_init();
+#endif
 #endif
 	const esp_partition_t *kernel = esp_partition_find_first(
 		ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "kernel");

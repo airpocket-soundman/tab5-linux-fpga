@@ -1,0 +1,18 @@
+/*
+ * Tab5 USB-A uses the dedicated USB20 HS PHY, not the USB11 pins used
+ * by I2S on this board. The boot shim owns PHY clocks/reset and VBUS.
+ * Append only with TAB5_USB_HOST=1 and a matching host-enabled shim.
+ */
+&soc {
+	usb_otg20: usb@50000000 {
+		compatible = "espressif,esp32p4-otg20", "snps,dwc2";
+		reg = <0x50000000 0x10000>;
+		interrupts-extended = <&clic0 24 93 IRQ_TYPE_LEVEL_HIGH>;
+		dr_mode = "host";
+		maximum-speed = "high-speed";
+		phy_type = "utmi";
+		hnp-disable;
+		srp-disable;
+		status = "okay";
+	};
+};

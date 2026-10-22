@@ -13,6 +13,7 @@
  * The same 0x43 expander drives LCD_RST on P4 (high = panel running), and
  * GPIO22 enables the backlight boost converter; Linux has drivers for
  * neither, so tab5_lcd_power_on() sets both before the handoff.
+ * The opt-in USB host path also enables USB-A VBUS on expander 0x44 P3.
  *
  * Nothing else here needs I2C, so the bus is bit-banged with open-drain GPIO
  * instead of pulling in the I2C driver; it is released (inputs) on return so
@@ -44,6 +45,7 @@ static const char *TAG = "tab5-power";
 #define PI4IO_REG_OUT_HIGHZ 0x07u  /* 1 = output disabled (reset 0xff) */
 
 #define PI4IO_PWR_WLAN_PWR_EN (1u << 0)
+#define PI4IO_PWR_USB_EN (1u << 3)
 #define PI4IO_SYS_RF_PTH_EXT (1u << 0)
 #define PI4IO_SYS_LCD_RST (1u << 4)
 
@@ -255,5 +257,19 @@ bool tab5_lcd_power_on(void)
 	gpio_set_level(TAB5_LCD_BACKLIGHT, 1);
 	ESP_LOGI(TAG, "LCD reset released (expander 0x%02x P4), backlight on",
 		 PI4IO_ADDR_SYS);
+	return true;
+}
+
+bool tab5_usb_host_power_on(void)
+{
+	i2c_bus_claim();
+	bool ok = pi4io_drive(PI4IO_ADDR_PWR, PI4IO_PWR_USB_EN, true);
+	i2c_bus_release();
+	if (!ok) {
+		ESP_LOGE(TAG, "USB_EN write failed; skipping USB host PHY init");
+		return false;
+	}
+	ESP_LOGI(TAG, "USB-A VBUS enabled (expander 0x%02x P3)",
+		 PI4IO_ADDR_PWR);
 	return true;
 }

@@ -5,6 +5,12 @@ name: tab5-panel-build
 on:
   push:
     branches: [codex/st7121-display]
+    paths:
+      - '.github/workflows/tab5-panel-build.yml'
+      - 'linux/kernel-patches/0077-drm-panel-sitronix-st7121.patch'
+      - 'linux/kernel-patches/0078-dwc2-esp32p4-usb20-host-pio.patch'
+      - 'linux/dts/tab5-usb-host.dtsi'
+      - 'linux/tab5/usb-host-boot-symbols.json'
   workflow_dispatch:
 permissions:
   contents: read
@@ -32,7 +38,7 @@ jobs:
           run-id: ${{ env.KIT_RUN_ID }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: kit
-      - name: Prepare ST7121 kernel and device tree
+      - name: Prepare ST7121 and USB host kernel and device tree
         shell: bash
         run: |
           set -euo pipefail
@@ -42,6 +48,8 @@ jobs:
           cp kit/kernel.config work/obj/.config
           patch --batch --forward -d work/linux-custom -p1 \
             < linux/kernel-patches/0077-drm-panel-sitronix-st7121.patch
+          patch --batch --forward -d work/linux-custom -p1 \
+            < linux/kernel-patches/0078-dwc2-esp32p4-usb20-host-pio.patch
           python3 - <<'PY'
           from pathlib import Path
           path = Path('work/linux-custom/arch/riscv/boot/dts/espressif/easystick-stamp-p4.dts')
@@ -51,6 +59,12 @@ jobs:
               raise SystemExit('Expected exactly one ST7123 panel node in kit DTS')
           path.write_text(text.replace(old, 'compatible = "sitronix,st7121";'))
           PY
+          cat linux/dts/tab5-usb-host.dtsi \
+            >> work/linux-custom/arch/riscv/boot/dts/espressif/easystick-stamp-p4.dts
+          work/linux-custom/scripts/config --file work/obj/.config \
+            --enable USB --enable HID_SUPPORT --enable HID --enable HID_GENERIC \
+            --enable USB_HID --enable USB_DWC2_HOST \
+            --disable USB_DWC2_PERIPHERAL --disable USB_DWC2_DUAL_ROLE
           {
             printf 'source_commit=%s\n' "$GITHUB_SHA"
             printf 'baseline_kit_run=%s\n' "$KIT_RUN_ID"
@@ -59,14 +73,72 @@ jobs:
             printf 'module_compatibility=unverified_with_baseline_rootfs\n'
             riscv64-linux-gnu-gcc --version
             sha256sum kit/kernel.config kit/linux-tree.tar.zst \
-              linux/kernel-patches/0077-drm-panel-sitronix-st7121.patch
+              linux/kernel-patches/0077-drm-panel-sitronix-st7121.patch \
+              linux/kernel-patches/0078-dwc2-esp32p4-usb20-host-pio.patch \
+              linux/dts/tab5-usb-host.dtsi
           } > artifacts/build-info.txt
+      - name: Match kernel C68 addresses to USB host boot shim
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee artifacts/boot-symbol-relocation.log
+          import json
+          import re
+          from pathlib import Path
+
+          manifest = Path('linux/tab5/usb-host-boot-symbols.json')
+          data = json.loads(manifest.read_text())
+          if not re.fullmatch(r'[0-9a-fA-F]{64}', data['elf_sha256']):
+              raise SystemExit('Invalid boot-shim ELF SHA-256')
+          old = {'release': 0x4ff13f1c, 'stage': 0x4ff13f18}
+          new = {}
+          for key in old:
+              value = data[f'new_{key}']
+              new[key] = int(value, 0) if isinstance(value, str) else int(value)
+              if not (0x4ff00000 <= new[key] < 0x50000000) or new[key] % 4:
+                  raise SystemExit(f'Invalid aligned boot-shim IRAM address: {key}')
+              if f'old_{key}' in data:
+                  value = data[f'old_{key}']
+                  value = int(value, 0) if isinstance(value, str) else int(value)
+                  if value != old[key]:
+                      raise SystemExit(f'Baseline kit address mismatch: {key}')
+          if new['release'] == new['stage']:
+              raise SystemExit('Release and stage addresses must differ')
+          pending = {}
+          for filename in ('cpu_ops_spinwait.c', 'smpboot.c'):
+              path = Path('work/linux-custom/arch/riscv/kernel') / filename
+              text = path.read_text()
+              for key in old:
+                  macro = f'EASYSTICK_C68_{key.upper()}_PA'
+                  pattern = rf'(^#define\s+{macro}\s+)(0x[0-9a-fA-F]+)[uU](\s*)$'
+                  matches = list(re.finditer(pattern, text, re.MULTILINE))
+                  if len(matches) != 1 or int(matches[0].group(2), 16) != old[key]:
+                      raise SystemExit(f'Unexpected baseline macro: {filename} {macro}')
+                  text = re.sub(pattern, lambda m: f'{m[1]}0x{new[key]:08x}u{m[3]}',
+                                text, flags=re.MULTILINE)
+                  print(f'{filename} {macro}: 0x{old[key]:08x} -> 0x{new[key]:08x}')
+              pending[path] = text
+          for path, text in pending.items():
+              path.write_text(text)
+          Path('artifacts/usb-host-boot-symbols.json').write_text(manifest.read_text())
+          print(f'Expected boot-shim ELF SHA-256: {data["elf_sha256"]}')
+          PY
       - name: Build kernel and device tree
         shell: bash
         run: |
           set -euo pipefail
           make -C work/linux-custom O="$GITHUB_WORKSPACE/work/obj" olddefconfig \
             2>&1 | tee artifacts/configure.log
+          for option in USB HID_SUPPORT HID HID_GENERIC USB_HID USB_DWC2_HOST; do
+            grep -Fxq "CONFIG_${option}=y" work/obj/.config || {
+              echo "Required kernel option was disabled: $option" >&2
+              exit 1
+            }
+          done
+          if grep -Eq '^CONFIG_USB_DWC2_(PERIPHERAL|DUAL_ROLE)=y$' work/obj/.config; then
+            echo 'DWC2 must use host-only mode for this experiment' >&2
+            exit 1
+          fi
           make -C work/linux-custom O="$GITHUB_WORKSPACE/work/obj" \
             -j"$(nproc)" Image dtbs 2>&1 | tee artifacts/build.log
       - name: Verify and package kernel artifacts
@@ -83,14 +155,19 @@ jobs:
           (( dtb_size <= 0x10000 )) || { echo "DTB exceeds dtb partition" >&2; exit 1; }
           dtc -I dtb -O dts "$dtb" -o artifacts/easystick-stamp-p4.dts
           grep -Fq 'sitronix,st7121' artifacts/easystick-stamp-p4.dts
+          grep -Fq 'espressif,esp32p4-otg20' artifacts/easystick-stamp-p4.dts
           cp "$image" artifacts/Image
           cp "$dtb" artifacts/easystick-stamp-p4.dtb
           cp work/obj/.config artifacts/kernel.config
           cp linux/kernel-patches/0077-drm-panel-sitronix-st7121.patch artifacts/
+          cp linux/kernel-patches/0078-dwc2-esp32p4-usb20-host-pio.patch artifacts/
+          cp linux/dts/tab5-usb-host.dtsi artifacts/
           printf 'Image_bytes=%s\nDTB_bytes=%s\n' "$image_size" "$dtb_size" \
             >> artifacts/build-info.txt
           (cd artifacts && sha256sum Image easystick-stamp-p4.dtb kernel.config \
-            0077-drm-panel-sitronix-st7121.patch > SHA256SUMS.txt)
+            0077-drm-panel-sitronix-st7121.patch \
+            0078-dwc2-esp32p4-usb20-host-pio.patch tab5-usb-host.dtsi \
+            usb-host-boot-symbols.json > SHA256SUMS.txt)
           cat artifacts/SHA256SUMS.txt
       - name: Upload kernel and diagnostic logs
         if: always()

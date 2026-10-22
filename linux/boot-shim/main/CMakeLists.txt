@@ -15,6 +15,10 @@ endif()
 if("$ENV{EASYSTICK_BOARD}" STREQUAL "tab5")
     target_sources(${COMPONENT_LIB} PRIVATE "tab5_power.c")
     target_compile_definitions(${COMPONENT_LIB} PRIVATE EASYSTICK_BOARD_TAB5=1)
+    # USB-A host is opt-in until a physical keyboard has been verified.
+    if("$ENV{TAB5_USB_HOST}" STREQUAL "1")
+        target_compile_definitions(${COMPONENT_LIB} PRIVATE EASYSTICK_TAB5_USB_HOST=1)
+    endif()
 elseif(NOT "$ENV{EASYSTICK_BOARD}" STREQUAL "" AND
        NOT "$ENV{EASYSTICK_BOARD}" STREQUAL "stamp-p4")
     message(FATAL_ERROR "unsupported EASYSTICK_BOARD: $ENV{EASYSTICK_BOARD}")

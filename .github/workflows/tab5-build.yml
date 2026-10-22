@@ -25,6 +25,10 @@ on:
         type: choice
         options: [st7123, st7121]
         default: st7123
+      usb_host:
+        description: 'Experimental Tab5 USB-A host and HID keyboard'
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -34,6 +38,7 @@ jobs:
     env:
       EASYSTICK_BOARD: tab5
       TAB5_LCD_PANEL: ${{ github.event.inputs.lcd_panel || 'st7123' }}
+      TAB5_USB_HOST: ${{ github.event.inputs.usb_host == 'true' && '1' || '0' }}
       VERSION: ${{ github.event.inputs.version || 'v0.0.1-tab5' }}
       ESP_HOSTED_MCU_REF: ${{ github.event.inputs.esp_hosted_mcu_ref || 'v2.13.0' }}
     steps:

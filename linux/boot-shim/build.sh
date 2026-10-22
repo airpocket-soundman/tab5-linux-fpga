@@ -13,6 +13,10 @@ the M1 recovery image cannot be overwritten by an M2 experiment.
 Set EASYSTICK_BOARD=tab5 to build for the M5Stack Tab5 instead of the
 Stamp-P4 (default EASYSTICK_BOARD=stamp-p4).
 
+Set TAB5_USB_HOST=1 with EASYSTICK_BOARD=tab5 to enable USB-A VBUS and
+initialize the USB 2.0 UTMI PHY before Linux takes over the host controller.
+The default build leaves USB-A host initialization disabled.
+
 Set EASYSTICK_TSENS_ORACLE=1 for an explicit C68-only ESP32-P4 LP-TSENS
 reference build. It emits one P4_TSENS_REF PASS line, then disables the
 sensor and its internal REGI2C path before handing off to Linux.
