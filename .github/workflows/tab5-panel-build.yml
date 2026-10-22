@@ -286,6 +286,9 @@ jobs:
             tab5-touch.dtsi touch.config.fragment \
             microsd-spi.config.fragment microsd-required-config.txt \
             usb-host-boot-symbols.json > SHA256SUMS.txt)
+          if [ -f artifacts/esp32_sdio.ko ]; then
+            (cd artifacts && sha256sum esp32_sdio.ko ble.config.fragment >> SHA256SUMS.txt)
+          fi
           cat artifacts/SHA256SUMS.txt
       - name: Upload kernel and diagnostic logs
         if: always()

@@ -8,6 +8,11 @@ on:
       - 'tools/tab5-console/**'
       - 'linux/m3-lab/rootfs-overlay/etc/init.d/S98tab5-touch-scroll'
   workflow_dispatch:
+    inputs:
+      kernel_run:
+        description: 'Optional successful BLE kernel run: install its matching SDIO module'
+        type: string
+        default: ''
 permissions:
   contents: read
   actions: read
@@ -15,6 +20,8 @@ jobs:
   input:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      BLE_KERNEL_RUN: ${{ inputs.kernel_run }}
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y squashfs-tools build-essential
@@ -30,6 +37,13 @@ jobs:
           run-id: '39868276889'
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: baseline
+      - uses: actions/download-artifact@v4
+        if: inputs.kernel_run != ''
+        with:
+          name: tab5-st7121-kernel
+          run-id: ${{ inputs.kernel_run }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: kernel
       - name: Compile and test input helpers with the pinned NOMMU SDK
         run: |
           set -euo pipefail
@@ -54,12 +68,22 @@ jobs:
           sudo unsquashfs -d rootfs baseline/rootfs.squashfs
           sudo install -m 755 artifacts/tab5-touch-scroll artifacts/tab5-ble-hid rootfs/usr/bin/
           sudo install -m 755 linux/m3-lab/rootfs-overlay/etc/init.d/S98tab5-touch-scroll rootfs/etc/init.d/
+          if [ -d kernel ]; then
+            (cd kernel && sha256sum -c SHA256SUMS.txt)
+            test -s kernel/esp32_sdio.ko
+            grep -Fxq CONFIG_BT=y kernel/kernel.config
+            mapfile -t modules < <(find rootfs/lib/modules -name esp32_sdio.ko -type f)
+            test "${#modules[@]}" -eq 1
+            sudo install -m 644 kernel/esp32_sdio.ko "${modules[0]}"
+            sha256sum kernel/esp32_sdio.ko > artifacts/installed-module.txt
+          fi
           sudo mksquashfs rootfs artifacts/rootfs.squashfs -noappend -comp lz4 -b 131072 -Xhc
           test "$(stat -c %s artifacts/rootfs.squashfs)" -le $((0x700000))
           for binary in tab5-touch-scroll tab5-ble-hid; do
             unsquashfs -cat artifacts/rootfs.squashfs "usr/bin/$binary" | cmp - "artifacts/$binary"
           done
           printf 'source_commit=%s\nbaseline_run=39868276889\nsdk_run=39765710691\nrequires_kernel_patches=0080,0081,0082\nble_autostart=no\n' "$GITHUB_SHA" > artifacts/build-info.txt
+          printf 'matching_ble_kernel_run=%s\n' "$BLE_KERNEL_RUN" >> artifacts/build-info.txt
           (cd artifacts && sha256sum tab5-touch-scroll tab5-ble-hid rootfs.squashfs build-info.txt > SHA256SUMS.txt)
       - uses: actions/upload-artifact@v4
         if: always()
