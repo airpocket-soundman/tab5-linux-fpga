@@ -18,7 +18,7 @@
 
 ## 確認結果
 
-確認環境はWindows、Python 3.12、既存Zig 0.13.0のhost C compiler。Linuxの既存link Python14件とC codec583ケースの基準試験が成功。新規memory12件、budget7件、GPU所有権8件、C CLI583ケース・513往復、両実装の共通12条件が成功。MeOS Cは8,514通りの位置・分割条件と途中失敗を検証した。双方の64MiB/64KiB復元CRC32は `8d536c88` で一致。詳細・実行コマンドは各文書へ記録する。CIの結果は実行履歴に残す。
+確認環境はWindows、Python 3.12、既存Zig 0.13.0のhost C compiler。Linuxの既存link Python14件とC codec583ケースの基準試験が成功。新規memory14件、budget7件、GPU所有権13件、C CLI583ケース・513往復、両実装の共通12条件が成功。MeOS Cは8,514通りの位置・分割条件と途中失敗を検証した。双方の64MiB/64KiB復元CRC32は `8d536c88` で一致。詳細・実行コマンドは各文書へ記録する。GCC/ClangのCIでも共通照合とC試験が成功した。MeOSはaddress/undefined sanitizer付き。実行履歴は [Linux](https://github.com/airpocket-soundman/tab5-linux-fpga/actions/workflows/offline-memory.yml)、[MeOS](https://github.com/airpocket-soundman/tab5-meos-fpga/actions/workflows/offline-fpga-memory.yml) に残す。
 
 データ照合、型・範囲検査、解放後や別instanceのhandle拒否、重複copy、短い読み書き・途中故障を検証する。64MiBの分割処理はPC上の一時ファイルによる模擬外部領域で行い、Tab5の常駐RAM量やDDR3・PARLIO帯域の実測とは区別する。
 
@@ -27,3 +27,5 @@
 正式なメモリwire ABI、物理transport、GPIO電気条件、DDR3コントローラ、DMA・IRQ・cache同期、OSタスクとの協調、GPU回路と表示経路は未検証。固定8byteの接続試験v0へ独自のメモリopcodeを追加しない。現在のcallback、handle、64-byte配置、転送上限は実験用の意味契約であり、そのままwire ABIとして固定しない。
 
 次は共通入力・期待値をRTL試験と正式API設計へ接続する。基板・実機再開後は低速接続試験、DDR3全域分割照合、OS別backendの順に確認する。実機再開の指示があるまでデバイス操作を行わない。
+
+追加レビューでGPUの画像世代とfence解放を補強。古い完了fenceで上書き済み画像を読めないこと、terminal fence解放で参照が残らないことを確認した。RAM割当は固定seedの1000操作を独立bytearray参照へ照合し、全解放後に全容量を再確保できた。

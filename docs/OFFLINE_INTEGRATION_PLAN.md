@@ -53,7 +53,7 @@ python -m unittest discover -s tools/fpga-memory -p test_memory_mock.py
 python tools/fpga-memory/memory_mock.py --mock
 ```
 
-既存link 14テスト、新規memory 12テストが成功。退避・復元demoは1,048,593 bytesを分割照合し、設定4096 bytesに対し最大単一転送4096 bytes、SHA-256は `f4bf9b8dec6e3e28b2ec33266145d244fe97a6bce1ec054ace053bab67d2ef9a`。ホストの一時ファイルとPython実行環境のメモリ量はTab5使用量を表さず、転送回数・時間もPARLIO性能ではない。
+既存link 14テスト、新規memory 14テストが成功。退避・復元demoは1,048,593 bytesを分割照合し、設定4096 bytesに対し最大単一転送4096 bytes、SHA-256は `f4bf9b8dec6e3e28b2ec33266145d244fe97a6bce1ec054ace053bab67d2ef9a`。ホストの一時ファイルとPython実行環境のメモリ量はTab5使用量を表さず、転送回数・時間もPARLIO性能ではない。
 
 受入の中心は、端数分割の照合、範囲外の変更拒否、解放後handle拒否、割当失敗と結合、重複copy、少量バッファでの処理を再現できること。正式wire仕様ができたらCRC破損、短い送受信、期限超過、応答欠落、reset後の古い要求を同じ入力でC/Python/RTLへ適用する。mock成功でL2〜L4やDDR3検証を完了扱いしない。
 

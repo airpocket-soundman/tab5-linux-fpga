@@ -34,6 +34,7 @@ class Session:
         self._serial = 0
         self._buffers = {}
         self._fences = {}
+        self._versions = {}
         self.active = None
 
     def register(self, offset, size):
@@ -44,6 +45,7 @@ class Session:
         self._serial += 1
         handle = Buffer(self._serial, offset, size)
         self._buffers[handle] = "cpu"
+        self._versions[handle] = 0
         return handle
 
     def _known(self, handle):
@@ -58,11 +60,19 @@ class Session:
         for other, owner in self._buffers.items():
             if owner == "device" and self._overlap(handle, other):
                 raise RuntimeError("buffer bytes are device owned")
+        if write:
+            self._invalidate(handle)
         return True
+
+    def _invalidate(self, handle):
+        for other in self._buffers:
+            if self._overlap(handle, other):
+                self._versions[other] += 1
 
     def free(self, handle):
         self.cpu_access(handle)
         del self._buffers[handle]
+        del self._versions[handle]
 
     @staticmethod
     def _overlap(a, b):
@@ -92,7 +102,9 @@ class Session:
         # Publish only after every check has succeeded.
         self._serial += 1
         fence = Fence(self._serial)
-        self._fences[fence] = ("pending", (color, depth))
+        self._invalidate(color)
+        self._invalidate(depth)
+        self._fences[fence] = ("pending", (color, depth), self._versions[color])
         self._buffers[color] = self._buffers[depth] = "device"
         self.active = fence
         return fence
@@ -106,7 +118,7 @@ class Session:
         state = self.status(fence)
         if state not in ("pending", "uncertain"):
             raise RuntimeError("job is already terminal")
-        self._fences[fence] = ("uncertain", self._fences[fence][1])
+        self._fences[fence] = ("uncertain", *self._fences[fence][1:])
 
     def acknowledge(self, fence, outcome):
         """A trusted backend has confirmed completion, stopped failure or cancellation.
@@ -120,13 +132,30 @@ class Session:
         if state not in ("pending", "uncertain"):
             raise RuntimeError("job is already terminal")
         buffers = self._fences[fence][1]
-        self._fences[fence] = (outcome, buffers)
+        self._fences[fence] = (outcome, *self._fences[fence][1:])
         for handle in buffers:
             self._buffers[handle] = "cpu"
         self.active = None
+
+    def authorize_readback(self, fence):
+        """Authorize the completed color image only while its contents remain current."""
+        if self.status(fence) != "complete":
+            raise RuntimeError("readback requires successful completion")
+        _, (color, _), generation = self._fences[fence]
+        self.cpu_access(color)
+        if self._versions[color] != generation:
+            raise RuntimeError("completed color contents have been superseded")
+        return color
+
+    def retire(self, fence):
+        """Release terminal fence metadata and its references to buffer handles."""
+        if self.status(fence) not in ("complete", "failed", "cancelled"):
+            raise RuntimeError("cannot retire an outstanding job")
+        del self._fences[fence]
 
     def reset_acknowledged(self):
         """Call only after backend reset has actually stopped all device access."""
         self._buffers.clear()
         self._fences.clear()
+        self._versions.clear()
         self.active = None

@@ -189,6 +189,77 @@ class MemoryTests(unittest.TestCase):
             expected[1:9] = original_data[0:8]
             self.assertNotEqual(actual, expected)
 
+    def test_seeded_allocator_state_machine_against_independent_contents(self):
+        rng = random.Random(0x20261023)
+        expected = {}
+        failed_allocations = 0
+        frees = 0
+        writes = 0
+        copies = 0
+        for step in range(1000):
+            operation = rng.randrange(100)
+            handles = list(expected)
+            if not handles or operation < 35:
+                size = 4097 if step % 23 == 0 else rng.randint(1, 700)
+                try:
+                    handle = self.memory.allocate(size)
+                except MemoryError:
+                    failed_allocations += 1
+                else:
+                    self.assertNotIn(handle, expected)
+                    expected[handle] = bytearray(size)
+                    self.assertLessEqual(sum(len(data) for data in expected.values()), 4096)
+            elif operation < 55:
+                handle = rng.choice(handles)
+                self.memory.free(handle)
+                del expected[handle]
+                frees += 1
+                with self.assertRaises(ValueError):
+                    self.memory.read(handle, 0, 0)
+            elif operation < 80:
+                handle = rng.choice(handles)
+                count = rng.randint(0, min(31, len(expected[handle])))
+                offset = rng.randint(0, len(expected[handle]) - count)
+                data = rng.randbytes(count)
+                self.memory.write(handle, offset, data)
+                expected[handle][offset:offset + count] = data
+                writes += 1
+            else:
+                source, target = rng.choice(handles), rng.choice(handles)
+                count = rng.randint(0, min(len(expected[source]), len(expected[target])))
+                source_offset = rng.randint(0, len(expected[source]) - count)
+                target_offset = rng.randint(0, len(expected[target]) - count)
+                snapshot = bytes(expected[source][source_offset:source_offset + count])
+                self.memory.copy(source, source_offset, target, target_offset, count)
+                expected[target][target_offset:target_offset + count] = snapshot
+                copies += 1
+            # Public reads check every active object after every operation,
+            # including failed allocation and updates of neighbouring objects.
+            for handle, content in expected.items():
+                actual = b"".join(data for _, data in self.memory.tiles(handle))
+                self.assertEqual(actual, content, f"step {step}, handle {handle.number}")
+        self.assertGreater(failed_allocations, 0)
+        self.assertGreater(frees, 0)
+        self.assertGreater(writes, 0)
+        self.assertGreater(copies, 0)
+        for handle in list(expected):
+            self.memory.free(handle)
+        # Coalescing must recover the complete arena after arbitrary history.
+        whole = self.memory.allocate(4096)
+        self.assertEqual(b"".join(data for _, data in self.memory.tiles(whole)), bytes(4096))
+
+    def test_mutable_caller_buffer_and_copied_objects_are_independent(self):
+        source, target = self.memory.allocate(10), self.memory.allocate(10)
+        caller = bytearray(b"0123456789")
+        self.memory.write(source, 0, caller)
+        caller[:] = b"XXXXXXXXXX"
+        self.assertEqual(self.memory.read(source, 0, 10), b"0123456789")
+        self.memory.copy(source, 0, target, 0, 10)
+        self.memory.write(source, 0, b"abcdefghij")
+        self.assertEqual(self.memory.read(target, 0, 10), b"0123456789")
+        self.memory.write(target, 0, b"ABCDEFGHIJ")
+        self.assertEqual(self.memory.read(source, 0, 10), b"abcdefghij")
+
 
 if __name__ == "__main__":
     unittest.main()
