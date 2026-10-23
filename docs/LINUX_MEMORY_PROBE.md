@@ -57,8 +57,33 @@ seedはpass1で`0x9e3779b9`、pass2で`0x85ebca6b`。CRC-32は反転poly `0xedb8
 
 終了codeは成功0、検証またはファイルI/O失敗1、引数不正2。失敗時はstderrへ理由を出し、成功JSONは出力しない。自動再試行・原子性・回復機能は提供しない。短いread/write、seek失敗、close失敗を検査する。途中失敗すれば一時ファイルの内容が部分変更済みの場合がある。
 
+## 自動照合と容量を増やした確認
+
+独立したPythonパターン・CRC実装と比較するrunnerは以下で実行する。
+
+```text
+python tools/fpga-memory/run_file_probe.py --cc cc
+python tools/fpga-memory/run_file_probe.py --cc cc --sanitize
+python tools/fpga-memory/run_file_probe.py --cc D:/tmp/tab5-test-tools/ziglang/zig.exe --zig
+python tools/fpga-memory/run_file_probe.py --cc D:/tmp/tab5-test-tools/ziglang/zig.exe --zig --sanitize
+```
+
+Windowsホストの既存Zigで通常実行と`--sanitize`要求付き実行の両方が成功した。それぞれ6種類のサイズ×3種類のchunkの18ケースで独立CRCと一致し、不正引数13例を終了code2で、破損注入3例を終了code1で拒否した。`--sanitize`はAddressSanitizer・UndefinedBehaviorSanitizerのコンパイラオプションを要求し、コンパイル失敗時に自動で外して再試行しない。この結果はターゲット用のinstrumentationやTab5実行を確認したものではない。
+
+64MiB・chunk65536の実行では、同じファイルを2passで合計134217728バイト検証した。read/write各2048回、CRCはpass1=`433b8578`、pass2=`645740d1`。実行時間・プロセスRAM最大値は測定していない。
+
 ## 確認記録と次の作業
 
 Windowsホストの既存Zigで`-std=c11 -O2 -Wall -Wextra -Werror`コンパイル成功。size65539・chunk31の2passで131078バイトを検証し、read/write各4230回、CRCはpass1=`0c3b5aab`、pass2=`afbf1a5e`。同条件で末尾65538を破損させると、pass1・byte65538の不一致として終了code1、stdout空で失敗した。
 
 今後はLinuxホストで同じベクタを照合し、必要に応じて対象SDKでコンパイルする。実機が使える段階で、ファイルmockの小容量実行と実際の外部RAM backendを別々に確認する。実通信に進む前にaddress幅・最大長・要求ID・timeout・部分進捗・reset時の扱いを別仕様で定義する。L2〜L4の実機完了条件はこのmockでは達成しない。
+
+## Tab5向けNOMMUビルド結果
+
+2026-10-23、[offline-memory実行39959725472](https://github.com/airpocket-soundman/tab5-linux-fpga/actions/runs/39959725472) がGCC・ClangのASan/UBSan検査とNOMMUビルドに成功した。ソースは `faaca39`、SDKは既存の `tab5-terminal-sdk`（実行39765710691）をSHA-256照合後に使用した。
+
+artifact `tab5-memory-file-probe` に実行ファイル、build-info、SHA256SUMSを保存。実行ファイルのSHA-256は `132cce3f8d4bda673cf60649d09d2d26f7870d42f685c99e31605dc9b4e76d15`。取得後の再照合も成功した。
+
+`check_flat.py` による静的確認：bFLT revision4、entry68、初期化領域89,352 bytes、BSS82,872 bytes、要求stack32,768 bytes、relocation46件。ヘッダ上の範囲・再配置表・非圧縮形式を検査したもので、ロード成功や実機の最大RAM消費を証明しない。
+
+Tab5向けバイナリを生成したが、Tab5へ転送・実行・書込みはしていない。実機再開後は小さいサイズからtmpfile保存先・空き容量・終了時の解放を確認する。これはファイルbackendの診断であり、DDR3接続やPARLIO backendを実装したものではない。

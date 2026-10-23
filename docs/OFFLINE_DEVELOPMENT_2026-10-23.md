@@ -39,3 +39,5 @@
 ホストの64MiB/64KiB・2pass試験でCRC32 `433b8578` / `645740d1` を確認。書込み・読取り各2048回。128MiBは2passの照合合計であり、1passのデータ領域は64MiB。この数値をFPGA容量・帯域の実測として扱わない。
 
 標準CIは外部のMeOSリポジトリを取得しない構成に変更。任意の過去比較runnerは履歴として残す。GCC/Clangのsanitizer検査と、既存SDKによるrv32imac NOMMU bFLTビルド・ヘッダ検査を追加した。ターゲットビルドはTab5での実行を意味しない。tmpfileの保存先と空き容量の確認は実機再開後の残件。
+
+C診断追加コミット `faaca39` の [CI実行39959725472](https://github.com/airpocket-soundman/tab5-linux-fpga/actions/runs/39959725472) はGCC/Clang sanitizer・NOMMUビルドとも成功。artifactの再取得、SHA-256照合、bFLT静的再検査も成功。詳細はC診断記録を参照。標準static-checkも成功した。

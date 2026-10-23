@@ -4,7 +4,7 @@
 
 主目的はFPGA側DDR3を利用した大容量データの分割処理・退避復元です。Linux・通信ドライバを基盤として開発し、GPU構成も検討します。[MeOS版](https://github.com/airpocket-soundman/tab5-meos-fpga)とはOS別の実装・検証を分けます。
 
-2026-10-23：Tab5を利用せず、[外部RAMの意味モデル・OS間照合・GPUメモリ管理](docs/OFFLINE_DEVELOPMENT_2026-10-23.md)を追加しました。PC上で64MiBの分割保存・復元とC/Pythonの共通照合を確認。実機のDDR3・PARLIO・DMAの検証結果ではありません。
+2026-10-23：Tab5を利用せず、[外部RAMの意味モデル・OS間照合・GPUメモリ管理](docs/OFFLINE_DEVELOPMENT_2026-10-23.md)を追加しました。PC上で64MiBの分割保存・復元とC/Pythonの共通照合を確認。実機のDDR3・PARLIO・DMAの検証結果ではありません。 [Linux単独のCメモリ診断](docs/LINUX_MEMORY_PROBE.md)も追加し、GCC/Clangのsanitizer検査とTab5向けNOMMUビルドが成功しました。実機実行は未検証です。
 
 **tab5-linux-fpga** は、Tab5 NOMMU Linuxを基盤にTang Primer 20Kとの通信ドライバとOSビルド環境を開発します。研究計画・FPGA回路・評価アプリは [esp32p4-linux-fpga-memory](https://github.com/airpocket-soundman/esp32p4-linux-fpga-memory) で管理します。
 
