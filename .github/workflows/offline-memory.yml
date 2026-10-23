@@ -29,6 +29,7 @@ jobs:
         run: |
           python3 -m unittest discover -s tools/fpga-link -p test_fpga_link.py -v
           python3 -m unittest discover -s tools/fpga-memory -p test_memory_mock.py -v
+          python3 -m unittest discover -s tools/fpga-memory -p test_flat.py -v
           python3 -m unittest discover -s tools/fpga-budget -p test_budget.py -v
           python3 -m unittest discover -s tools/fpga-gpu-model -p test_ownership.py -v
       - name: C link compatibility (no hardware)
@@ -39,12 +40,38 @@ jobs:
         run: |
           python3 tools/fpga-memory/memory_mock.py --mock --size 67108864 --transfer-limit 65536
           python3 tools/fpga-budget/budget.py --width 720 --height 1280 --available-readback-bps 20000000
-      - name: Checkout the reviewed MeOS host core at a fixed revision
-        uses: actions/checkout@v4
+      - name: Standalone Linux C memory probe (sanitizers, no hardware)
+        run: python3 tools/fpga-memory/run_file_probe.py --cc ${{ matrix.cc }} --sanitize
+  nommu-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          repository: airpocket-soundman/tab5-meos-fpga
-          ref: 7d14d858ea5045767799c9a8622ced16e35c2947
-          path: companion-meos
-          persist-credentials: false
-      - name: Cross-implementation data conformance (no OS runtime or hardware)
-        run: python3 tools/fpga-memory/compare_meos.py --meos-root companion-meos --cc ${{ matrix.cc }}
+          name: tab5-terminal-sdk
+          run-id: '39765710691'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: sdk-download
+      - name: Compile C file probe for Tab5 NOMMU (build only)
+        run: |
+          set -euo pipefail
+          mkdir -p sdk artifacts
+          (cd sdk-download && sha256sum -c SHA256SUMS.txt)
+          tar -xzf sdk-download/tab5-rv32imac-nommu-sdk.tar.gz -C sdk
+          sdk/host/relocate-sdk.sh
+          sdk/host/bin/riscv32-buildroot-linux-uclibc-gcc \
+            -std=c11 -Wall -Wextra -Werror -Os -fPIC -static \
+            -march=rv32imac_zicsr_zifencei -mabi=ilp32 \
+            '-Wl,-elf2flt=-r -s32768' \
+            tools/fpga-memory/file_probe.c -o artifacts/tab5-memory-file-probe
+          python3 tools/fpga-memory/check_flat.py artifacts/tab5-memory-file-probe
+          printf 'source_commit=%s\nsdk_run=39765710691\nbackend=tmpfile-mock-only\ntarget_runtime_tested=false\nphysical_link_tested=false\n' "$GITHUB_SHA" > artifacts/build-info.txt
+          (cd artifacts && sha256sum tab5-memory-file-probe build-info.txt > SHA256SUMS.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tab5-memory-file-probe
+          path: artifacts/

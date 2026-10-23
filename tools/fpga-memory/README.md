@@ -12,3 +12,5 @@ python -m unittest discover -s tools/fpga-memory -p test_memory_mock.py -v
 追加パッケージ不要。PCの一時ファイルだけを利用し、Tab5・FPGA・GPIO・COMへ接続しない。
 既存の `tools/fpga-link/` の接続試験v0にはメモリopcodeを追加しない。
 CLIは1オブジェクト128MiB、1転送1MiBを上限とし、一時ファイル容量はsizeの2倍。
+
+Linuxだけで実行できるC版は [Cファイルモデル診断](../../docs/LINUX_MEMORY_PROBE.md) を参照。`run_file_probe.py --cc cc --sanitize` で独立期待値・不正引数・破損検出を検証する。標準CIはMeOSを取得せず、このリポジトリ内で完結する。
