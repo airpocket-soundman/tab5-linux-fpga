@@ -1,0 +1,161 @@
+From: Tab5 Linux FPGA maintainers
+Subject: [PATCH] gpio: esp32p4: isolate direction commands and restore GPIO routing
+
+The generic GPIO direction helpers rewrite a full bank, including inverse
+shadow bits to ENABLE_W1TC, and do so during initialization. These registers
+accept single-bit commands, not bank state. Preserve unrelated boot outputs.
+Read direction from ENABLE, establish requested pad GPIO routing, and expose
+stable bank labels for cdev discovery. No physical verification is asserted.
+
+--- a/drivers/gpio/gpio-esp32p4.c
++++ b/drivers/gpio/gpio-esp32p4.c
+@@ -2,9 +2,9 @@
+ /*
+  * GPIO controller driver for the Espressif ESP32-P4.
+  *
+- * The ESP32-P4 has 57 GPIOs (0..56) split across two banks:
++ * The ESP32-P4 has 55 GPIOs (0..54) split across two banks:
+  *   bank 0 — GPIOs 0..31 (OUT/ENABLE/IN/STATUS at 0x04/0x20/0x3C/0x44)
+- *   bank 1 — GPIOs 32..56 (OUT1/ENABLE1/IN1/STATUS1 at 0x10/0x2C/0x40/0x50)
++ *   bank 1 — GPIOs 32..54 (OUT1/ENABLE1/IN1/STATUS1 at 0x10/0x2C/0x40/0x50)
+  *
+  * Each DT node corresponds to one bank. The driver picks register offsets
+  * based on the `espressif,bank-id` property (0 or 1). Both DT nodes refer
+@@ -62,6 +62,10 @@
+  * (function 0 — likely a peripheral path), which silently drops our writes.
+  * IDF's gpio_config() always programs MCU_SEL=1; we have to do the same.
+  */
++#define ESP32P4_GPIO_FUNC_OUT_SEL(n) (0x558 + (n) * 4)
++#define ESP32P4_GPIO_OUT_SEL_MASK 0xfffu
++#define ESP32P4_GPIO_OUT_SEL_GPIO (256u | BIT(10))
++
+ #define ESP32P4_IO_MUX_BASE		0x500E1000
+ #define ESP32P4_IO_MUX_PIN(n)		(0x4 + (n) * 0x4)
+ #define IO_MUX_FUN_WPD			BIT(7)
+@@ -207,13 +211,56 @@
+ 	chained_irq_exit(parent_chip, desc);
+ }
+ 
++/* W1TS/W1TC are commands, not readable direction state registers. */
++static int esp32p4_gpio_direction_input(struct gpio_chip *gc, unsigned int offset)
++{
++	struct esp32p4_gpio *gpio = gpiochip_get_data(gc);
++
++	writel(BIT(offset), gpio->base + gpio->regs->enable_w1tc);
++	return 0;
++}
++
++static int esp32p4_gpio_direction_output(struct gpio_chip *gc, unsigned int offset,
++				       int value)
++{
++	struct esp32p4_gpio *gpio = gpiochip_get_data(gc);
++
++	/* Set the latch before enabling the pad, never change another line. */
++	writel(BIT(offset), gpio->base + (value ? gpio->regs->out_w1ts :
++					 gpio->regs->out_w1tc));
++	writel(BIT(offset), gpio->base + gpio->regs->enable_w1ts);
++	return 0;
++}
++
++static void esp32p4_gpio_free(struct gpio_chip *gc, unsigned int offset)
++{
++	/* Relinquish only the released line; do not restore peripheral routing. */
++	esp32p4_gpio_direction_input(gc, offset);
++}
++
++static int esp32p4_gpio_get_direction(struct gpio_chip *gc, unsigned int offset)
++{
++	struct esp32p4_gpio *gpio = gpiochip_get_data(gc);
++	/* ENABLE is four bytes before its W1TS command register in both banks. */
++	u32 enabled = readl(gpio->base + gpio->regs->enable_w1ts - 4);
++
++	return enabled & BIT(offset) ? GPIO_LINE_DIRECTION_OUT : GPIO_LINE_DIRECTION_IN;
++}
++
+ static int esp32p4_gpio_request(struct gpio_chip *gc, unsigned int offset)
+ {
+ 	struct esp32p4_gpio *gpio = gpiochip_get_data(gc);
+ 	u32 val, prev;
+ 
+ 	if (!gpio->iomux)
+-		return 0;
++		return -ENODEV;
++
++	/* Disable this pad before changing routes; initial output value follows. */
++	esp32p4_gpio_direction_input(gc, offset);
++	/* Reclaim only this pad from a boot-time peripheral matrix route. */
++	val = readl(gpio->base + ESP32P4_GPIO_FUNC_OUT_SEL(gpio->regs->pin_offset + offset));
++	val = (val & ~ESP32P4_GPIO_OUT_SEL_MASK) | ESP32P4_GPIO_OUT_SEL_GPIO;
++	writel(val, gpio->base + ESP32P4_GPIO_FUNC_OUT_SEL(gpio->regs->pin_offset + offset));
+ 
+ 	prev = readl(gpio->iomux + ESP32P4_IO_MUX_PIN(gpio->regs->pin_offset + offset));
+ 	val = (prev & ~IO_MUX_MCU_SEL_MASK) | IO_MUX_MCU_SEL_GPIO | IO_MUX_FUN_IE;
+@@ -309,17 +356,9 @@
+ 		dev_warn(dev, "failed to map IO_MUX; pin function will not be configured per request\n");
+ 
+ 	/*
+-	 * gpio_generic_chip_init consumes four register pointers:
+-	 *   dat    — readable level (GPIO_IN for input, or GPIO_OUT for
+-	 *            reading back driven output if dat==set)
+-	 *   set    — write-1-to-set for output levels
+-	 *   clr    — write-1-to-clear for output levels
+-	 *   dirout — write-1-to-set for output enables
+-	 *   dirin  — write-1-to-set for output disables (using the W1TC reg)
+-	 *
+-	 * GPIO_GENERIC_READ_OUTPUT_REG_SET is useful when we want reads to
+-	 * report what we last drove on outputs (matches gpiolib expectations).
+-	 * But we have a proper input register, so use that.
++	 * Generic level get/set supports the input and W1TS/W1TC output registers.
++	 * Do not give generic code direction-command registers: it treats them as
++	 * bank-wide state and can disable boot-owned outputs even during init.
+ 	 */
+ 	struct gpio_generic_chip_config gcfg = {
+ 		.dev    = dev,
+@@ -327,8 +366,7 @@
+ 		.dat    = gpio->base + gpio->regs->in,
+ 		.set    = gpio->base + gpio->regs->out_w1ts,
+ 		.clr    = gpio->base + gpio->regs->out_w1tc,
+-		.dirout = gpio->base + gpio->regs->enable_w1ts,
+-		.dirin  = gpio->base + gpio->regs->enable_w1tc,
++		/* Leave direction NULL: generic init must not replay bank-wide bits. */
+ 		.flags  = 0,
+ 	};
+ 
+@@ -336,19 +374,23 @@
+ 	if (ret)
+ 		return dev_err_probe(dev, ret, "gpio_generic_chip_init failed\n");
+ 
+-	gpio->ggc.gc.label = dev_name(dev);
++	gpio->ggc.gc.label = bank_id ? "esp32p4-gpio-bank1" : "esp32p4-gpio-bank0";
+ 	gpio->ggc.gc.parent = dev;
+ 	gpio->ggc.gc.owner = THIS_MODULE;
+ 	/*
+ 	 * Pin the global gpio number to match the hardware pin number
+-	 * (bank 0 → 0..31, bank 1 → 32..63). Legacy callers such as
++	 * (bank 0 → 0..31, bank 1 → 32..54). Legacy callers such as
+ 	 * esp_hosted-NG's `gpio_request(CONFIG_ESP_HOSTED_SPI_HANDSHAKE_GPIO)`
+ 	 * pass hardware pin numbers; auto-allocated bases (gc.base=-1) put
+ 	 * the chip somewhere up near ARCH_NR_GPIOS and break that mapping.
+ 	 */
+ 	gpio->ggc.gc.base = bank_id * ESP32P4_GPIO_NGPIO;
+-	gpio->ggc.gc.ngpio = ESP32P4_GPIO_NGPIO;
++	gpio->ggc.gc.ngpio = bank_id ? 23 : ESP32P4_GPIO_NGPIO;
++	gpio->ggc.gc.direction_input = esp32p4_gpio_direction_input;
++	gpio->ggc.gc.direction_output = esp32p4_gpio_direction_output;
++	gpio->ggc.gc.get_direction = esp32p4_gpio_get_direction;
+ 	gpio->ggc.gc.request = esp32p4_gpio_request;
++	gpio->ggc.gc.free = esp32p4_gpio_free;
+ 	gpio->ggc.gc.set_config = esp32p4_gpio_set_config;
+ 
+ 	/*
+@@ -386,8 +428,8 @@
+ 		return dev_err_probe(dev, ret, "gpiochip_add failed\n");
+ 
+ 	dev_info(dev, "esp32p4-gpio: %u GPIOs (bank %u, hw %u..%u) at %p%s\n",
+-		 ESP32P4_GPIO_NGPIO, bank_id,
+-		 gpio->regs->pin_offset, gpio->regs->pin_offset + ESP32P4_GPIO_NGPIO - 1,
++		 gpio->ggc.gc.ngpio, bank_id,
++		 gpio->regs->pin_offset, gpio->regs->pin_offset + gpio->ggc.gc.ngpio - 1,
+ 		 gpio->base,
+ 		 irq > 0 ? ", irq enabled" : "");
+ 	return 0;

@@ -1,0 +1,9 @@
+config BR2_PACKAGE_TAB5_GPIO
+	bool "Tab5 shell and MicroPython GPIO support"
+	depends on BR2_riscv
+	depends on !BR2_USE_MMU
+	help
+	  GPIO character-device v2 client restricted to selected Tab5 external
+	  pins. Requires the matching isolated GPIO driver patch and GPIO_CDEV.
+	  Builds tab5-gpio and enables tab5gpio.Pin when micropython-nommu is
+	  selected. This option does not configure or drive any GPIO at boot.

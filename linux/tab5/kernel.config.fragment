@@ -32,3 +32,8 @@ CONFIG_INPUT_KEYBOARD=y
 CONFIG_KEYBOARD_M5STACK_TAB5=y
 CONFIG_I2C=y
 CONFIG_I2C_GPIO=y
+
+# GPIO v2 line requests; userspace policy excludes internal signals.
+CONFIG_GPIOLIB=y
+CONFIG_GPIO_CDEV=y
+# CONFIG_GPIO_CDEV_V1 is not set

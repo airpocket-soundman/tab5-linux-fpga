@@ -874,6 +874,9 @@ if [[ "${EASYSTICK_BOARD:-stamp-p4}" == tab5 ]]; then
 	patches+=(0080-physmap-rom-preserve-resource-size.patch)
 	patches+=(0081-input-tab5-st712x-touch.patch)
 	patches+=(0082-tab5-vt-scrollback.patch)
+	if $network_profile; then
+		patches+=(0083-gpio-esp32p4-isolate-direction.patch)
+	fi
 fi
 for patch_name in "${patches[@]}"; do
 	if [[ "$patch_name" == 0022-esp32p4-systimer-level-trigger.patch ||
@@ -917,6 +920,7 @@ for patch_name in "${patches[@]}"; do
 	      "$patch_name" == 0080-physmap-rom-preserve-resource-size.patch ||
 	      "$patch_name" == 0081-input-tab5-st712x-touch.patch ||
 	      "$patch_name" == 0082-tab5-vt-scrollback.patch ||
+	      "$patch_name" == 0083-gpio-esp32p4-isolate-direction.patch ||
 	      "$patch_name" == 0056-easystick-wdt-stacktrace.patch ||
 	      "$patch_name" == 0055-easystick-sdio-clock-attest.patch ||
 	      "$patch_name" == 0060-easystick-dw-mmc-tx-software-dto.patch ||
@@ -2142,6 +2146,12 @@ else
 	set_config_value "${br_output}/.config" BR2_PACKAGE_DROPBEAR_SMALL "# BR2_PACKAGE_DROPBEAR_SMALL is not set"
 	set_config_value "${br_output}/.config" BR2_PACKAGE_DROPBEAR_DISABLE_REVERSEDNS "# BR2_PACKAGE_DROPBEAR_DISABLE_REVERSEDNS is not set"
 	set_config_value "${br_output}/.config" BR2_PACKAGE_DROPBEAR_LOCALOPTIONS_FILE "# BR2_PACKAGE_DROPBEAR_LOCALOPTIONS_FILE is not set"
+fi
+# GPIO is opt-in by board selection, independent of the lab Python option.
+if [[ "${EASYSTICK_BOARD:-stamp-p4}" == tab5 ]] && $network_profile; then
+	set_config_value "${br_output}/.config" BR2_PACKAGE_TAB5_GPIO y
+else
+	set_config_value "${br_output}/.config" BR2_PACKAGE_TAB5_GPIO "# BR2_PACKAGE_TAB5_GPIO is not set"
 fi
 if $lab_tools; then
 	set_config_value "${br_output}/.config" BR2_PACKAGE_LIBPCAP y

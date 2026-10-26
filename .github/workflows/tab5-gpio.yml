@@ -1,0 +1,87 @@
+name: tab5-gpio
+on:
+  push:
+    branches: [codex/st7121-display, main]
+    paths:
+      - 'linux/tab5/gpio/**'
+      - 'linux/tab5/gpio-micropython/**'
+      - 'linux/buildroot-external/package/tab5-gpio/**'
+      - 'linux/buildroot-external/package/micropython-nommu/**'
+      - 'linux/kernel-patches/0083-gpio-esp32p4-isolate-direction.patch'
+      - 'tools/test_gpio_kernel_patch.py'
+      - '.github/workflows/tab5-gpio.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  host-and-nommu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch and verify fixed source archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work artifacts
+          curl --fail --location --retry 3 https://micropython.org/resources/source/micropython-1.22.2.tar.xz -o work/micropython.tar.xz
+          printf '%s  %s\n' bb3ba34848a7620663b6a7cba22af45d3056fc79328c2ceb943874b5478d8756 work/micropython.tar.xz | sha256sum -c -
+          tar -xJf work/micropython.tar.xz -C work
+          cp -a linux/buildroot-external/package/micropython-nommu/variant work/micropython-1.22.2/ports/unix/variants/nommu
+          curl --fail --location --retry 3 https://raw.githubusercontent.com/mrbreaker/why2025-linux/bd790395c14968a27c00f962c9cd08d66f39de24/patches/linux/0002-gpio-esp32p4.patch -o work/0002.patch
+      - name: Shared core and MMIO model tests (no physical GPIO)
+        run: |
+          python3 linux/tab5/gpio/run_tests.py --cc gcc
+          python3 linux/tab5/gpio/run_tests.py --cc clang
+          python3 tools/test_gpio_kernel_patch.py --reference work/0002.patch --cc gcc
+          gcc -std=c11 -Os -Wall -Wextra -Werror linux/tab5/gpio/tab5_gpio.c linux/tab5/gpio/tab5_gpio_linux.c linux/tab5/gpio/tab5_gpio_cli.c -o work/tab5-gpio
+          work/tab5-gpio list
+          if work/tab5-gpio read 0; then echo 'Reserved GPIO was accepted' >&2; exit 1; fi
+      - name: Native MicroPython mock binding tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C work/micropython-1.22.2/mpy-cross -j2
+          make -C work/micropython-1.22.2/ports/unix -j2 VARIANT=nommu BUILD=build-gpio-mock USER_C_MODULES="$GITHUB_WORKSPACE/linux/tab5" TAB5_GPIO_TEST_BACKEND=1
+          (cd linux/tab5/gpio-micropython && "$GITHUB_WORKSPACE/work/micropython-1.22.2/ports/unix/build-gpio-mock/micropython" test_mock.py)
+          make -C work/micropython-1.22.2/ports/unix -j2 VARIANT=nommu BUILD=build-gpio-production USER_C_MODULES="$GITHUB_WORKSPACE/linux/tab5" TAB5_GPIO_TEST_BACKEND=0
+          (cd linux/tab5/gpio-micropython && "$GITHUB_WORKSPACE/work/micropython-1.22.2/ports/unix/build-gpio-production/micropython" test_validation.py)
+          if work/micropython-1.22.2/ports/unix/build-gpio-production/micropython -c 'import tab5gpio; assert not hasattr(tab5gpio, "_test_stats"); print("production GPIO module: mock hooks absent")'; then :; else exit 1; fi
+      - uses: actions/download-artifact@v4
+        with:
+          name: tab5-terminal-sdk
+          run-id: '39765710691'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: sdk-download
+      - name: Build production Tab5 NOMMU executables (no execution or flashing)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p sdk
+          (cd sdk-download && sha256sum -c SHA256SUMS.txt)
+          tar -xzf sdk-download/tab5-rv32imac-nommu-sdk.tar.gz -C sdk
+          sdk/host/relocate-sdk.sh
+          prefix="$GITHUB_WORKSPACE/sdk/host/bin/riscv32-buildroot-linux-uclibc-"
+          "${prefix}gcc" -std=c11 -Os -fPIC -static -Wall -Wextra -Werror -march=rv32imac_zicsr_zifencei -mabi=ilp32 '-Wl,-elf2flt=-r -s32768' linux/tab5/gpio/tab5_gpio.c linux/tab5/gpio/tab5_gpio_linux.c linux/tab5/gpio/tab5_gpio_cli.c -o artifacts/tab5-gpio
+          make -C work/micropython-1.22.2/ports/unix -j2 VARIANT=nommu BUILD=build-gpio-nommu CROSS_COMPILE="$prefix" USER_C_MODULES="$GITHUB_WORKSPACE/linux/tab5" TAB5_GPIO_TEST_BACKEND=0 CFLAGS_EXTRA='-fPIC -DMICROPY_GCREGS_SETJMP=1 -DMICROPY_NLR_SETJMP=1 -Wno-error' LDFLAGS_EXTRA='-fPIC -Wl,-elf2flt=-r -Wl,-elf2flt=-s32768 -Wl,--allow-multiple-definition' STRIP=true SIZE=true
+          cp work/micropython-1.22.2/ports/unix/build-gpio-nommu/micropython artifacts/micropython
+          python3 tools/fpga-memory/check_flat.py artifacts/tab5-gpio
+          python3 tools/fpga-memory/check_flat.py artifacts/micropython
+          python3 - <<'PY'
+          import struct
+          from pathlib import Path
+          p=Path('artifacts/micropython').read_bytes()
+          bss_end=struct.unpack_from('>I',p,20)[0]
+          stack=struct.unpack_from('>I',p,24)[0]
+          if bss_end+stack > 512*1024:
+              raise SystemExit('MicroPython exceeds the existing 512KiB NOMMU allocation budget')
+          print('MicroPython allocation bytes:',bss_end+stack)
+          PY
+          printf 'source_commit=%s\nsdk_run=39765710691\nrequires_kernel_patch=0083\nrequires_CONFIG_GPIO_CDEV=y\nphysical_gpio_tested=false\ntarget_runtime_tested=false\n' "$GITHUB_SHA" > artifacts/build-info.txt
+          (cd artifacts && sha256sum tab5-gpio micropython build-info.txt > SHA256SUMS.txt)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tab5-gpio-userspace
+          path: artifacts/
