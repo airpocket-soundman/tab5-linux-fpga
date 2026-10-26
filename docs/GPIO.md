@@ -91,3 +91,9 @@ with Pin(16, Pin.IN) as pin:
 次の作業は全体イメージへの導入と、実機再開後の入力・出力レベル、他機能への影響、プロセス終了時の解放の確認。実端子の波形・電圧、物理外部機器の動作、カーネル変更後の既存機能回帰は未検証。
 
 [追加CI40283127205](https://github.com/airpocket-soundman/tab5-linux-fpga/actions/runs/40283127205)ではLinux adapterのopen/read/ioctl/closeを全て置換し、boardのNUL解析、v2の方向・初期値・mask、失敗時のerrnoとfd解放をGCC/ClangのASan/UBSan付きで検証した。実GPIOのsyscallは実行していない。
+
+## 最終CIとカーネル成果物の確認
+
+[カーネルCI40283127258](https://github.com/airpocket-soundman/tab5-linux-fpga/actions/runs/40283127258) はImage・DTBのビルドと成果物作成に成功した。取得後にmanifestの17項目をSHA-256照合し、`CONFIG_GPIO_CDEV=y`、v1無効、Image中の新しいbank labelを確認した。ImageのSHA-256は `cc31f57b7839718917d30c6e40bff62b4d03bd9afd766e5ab444b6eafed1f3de`、0083のSHA-256は `d3bd4143e8365c6d23e44fe276df137f20f6308d52a1e4daab0fb90792a407c7`。
+
+[最終ユーザーランドCI40283473361](https://github.com/airpocket-soundman/tab5-linux-fpga/actions/runs/40283473361) とstatic-checkも成功した。ホストbinding試験、注入したadapter試験、NOMMU実行ファイルの生成までを確認し、実端子の試験は行っていない。
