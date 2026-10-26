@@ -1,4 +1,5 @@
 menu "EasyStick Stamp-P4 board options"
+source "$BR2_EXTERNAL_EASYSTICK_STAMP_P4_PATH/package/tab5-tools/Config.in"
 
 source "$BR2_EXTERNAL_EASYSTICK_STAMP_P4_PATH/package/esp-hosted-ng/Config.in"
 source "$BR2_EXTERNAL_EASYSTICK_STAMP_P4_PATH/package/m5stamp-smp-smoke/Config.in"

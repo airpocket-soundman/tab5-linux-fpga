@@ -2,6 +2,18 @@
 
 更新日：2026-10-22
 
+2026-10-27追記：MeOS相当の周辺機器対応を開始。Tab5のGPIO character-device
+ツールと周辺機器一覧、USB Storage/UVCの任意追加設定を追加した。
+MicroPythonは既存m3-lab実装を利用する。USB HSホスト統合と実機検証は未完了で、
+L0～L4の完了状況は変更しない。実施内容、確認、未解決、次の作業は
+[周辺機器対応状況](TAB5_PERIPHERALS.md)に記録する。
+
+同日追記：MeOS実装を調査し、[機能移植一覧](MEOS_FEATURE_PARITY.md)を追加。
+BMP情報表示/fbdev描画、V4L2単一YUYVフレームのBMP保存、MicroPythonの
+Linux GPIO cdev用`tab5io.Pin`を実装し、ホストfixtureで確認した。
+USB HID/Ethernet/exFATは任意追加クラス設定までで、HSホスト・実機確認は未完了。
+今回の追加でL0～L4の完了状況は変えない。
+
 公開向けの全体像は [プロジェクトガイド](PROJECT_OVERVIEW.md)、検証の詳細は [初回起動記録](BRINGUP_2026-10-22.md)、更新手順は [公開ドキュメントの運用](PUBLISHING.md) を参照する。
 
 ## 目的

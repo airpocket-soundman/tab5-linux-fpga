@@ -1,0 +1,32 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Inventory only: never drives pins, loads modules, mounts or writes devices.
+set -eu
+echo 'USB devices (presence does not establish host transfer support):'
+for d in /sys/bus/usb/devices/*; do
+	[ -f "$d/idVendor" ] || continue
+	printf '%s ' "${d##*/}"
+	cat "$d/idVendor" "$d/idProduct"
+done
+echo 'USB storage candidates (check identity before mounting):'
+for d in /sys/class/block/sd*; do
+	[ -e "$d" ] || continue
+	printf '/dev/%s\n' "${d##*/}"
+done
+echo 'Video devices (may include non-USB cameras):'
+for d in /sys/class/video4linux/video*; do
+	[ -e "$d" ] || continue
+	printf '/dev/%s: ' "${d##*/}"
+	cat "$d/name"
+done
+echo 'GPIO chips (offsets are not board GPIO numbers):'
+for d in /dev/gpiochip*; do
+	[ -e "$d" ] || continue
+	tab5-gpio info "$d"
+done
+echo 'MicroPython:'
+if command -v micropython >/dev/null 2>&1; then
+	micropython -c 'import sys; print(sys.implementation)'
+else
+	echo 'not installed (m3-lab normally includes it; LAB_TOOLS=0 removes it)'
+fi

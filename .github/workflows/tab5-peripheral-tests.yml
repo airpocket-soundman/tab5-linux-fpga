@@ -1,0 +1,46 @@
+name: Tab5 peripheral host tests
+on:
+  push:
+    paths:
+      - 'linux/buildroot-external/package/tab5-tools/**'
+      - 'linux/buildroot-external/package/micropython-nommu/**'
+      - 'linux/tests/test-tab5-*.py'
+      - '.github/workflows/tab5-peripheral-tests.yml'
+  pull_request:
+    paths:
+      - 'linux/buildroot-external/package/tab5-tools/**'
+      - 'linux/buildroot-external/package/micropython-nommu/**'
+      - 'linux/tests/test-tab5-*.py'
+      - '.github/workflows/tab5-peripheral-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: GPIO and media fixtures
+        run: |
+          python3 linux/tests/test-tab5-gpio.py
+          python3 linux/tests/test-tab5-media.py
+          bash -n linux/build-m1.sh
+          sh -n linux/buildroot-external/package/tab5-tools/src/tab5-peripherals
+      - name: Fetch pinned MicroPython source
+        shell: python
+        run: |
+          import hashlib, os, pathlib, urllib.request
+          p = pathlib.Path(os.environ['RUNNER_TEMP']) / 'micropython-1.22.2.tar.xz'
+          urllib.request.urlretrieve('https://micropython.org/resources/source/micropython-1.22.2.tar.xz', p)
+          assert hashlib.sha256(p.read_bytes()).hexdigest() == 'bb3ba34848a7620663b6a7cba22af45d3056fc79328c2ceb943874b5478d8756'
+      - name: Build actual NOMMU variant for the host and test Pin lifecycle
+        run: |
+          tar -xJf "$RUNNER_TEMP/micropython-1.22.2.tar.xz" -C "$RUNNER_TEMP"
+          src="$RUNNER_TEMP/micropython-1.22.2"
+          mkdir -p "$src/ports/unix/variants/nommu"
+          cp linux/buildroot-external/package/micropython-nommu/variant/* "$src/ports/unix/variants/nommu/"
+          make -C "$src/mpy-cross" -j2
+          make -C "$src/ports/unix" VARIANT=nommu \
+            USER_C_MODULES="$GITHUB_WORKSPACE/linux/buildroot-external/package/micropython-nommu/usermod" -j2
+          python3 linux/tests/test-tab5-micropython.py "$src/ports/unix/build-nommu/micropython"

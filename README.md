@@ -768,3 +768,13 @@ The project's own files are licensed under GPL-2.0-only ([`LICENSE`](LICENSE), #
 - [why2025-linux](https://github.com/mrbreaker/why2025-linux) by @mrbreaker for initial ESP32-P4 NOMMU bring-up reference.
 - [Espressif ESP-Hosted](https://github.com/espressif/esp-hosted) for the SDIO Wi-Fi slave stack.
 - The Buildroot and Linux kernel communities.
+
+## Fork peripheral additions
+
+Tab5 builds include GPIO shell and inventory tools, a BMP framebuffer viewer,
+single-frame V4L2 YUYV-to-BMP capture, and `tab5io.Pin` in the existing
+MicroPython package. USB storage/UVC/HID/Ethernet class settings are experimental;
+Tab5 HS host integration remains unimplemented. These
+additions have not been verified on hardware. See
+[status and acceptance steps](docs/TAB5_PERIPHERALS.md) and the
+[MeOS feature audit](docs/MEOS_FEATURE_PARITY.md).

@@ -1041,6 +1041,16 @@ fi
 if [[ "${EASYSTICK_BOARD:-stamp-p4}" == tab5 ]]; then
 	cat "${firmware_root}/linux/tab5/kernel.config.fragment" >>"${kernel_config_fragment}"
 fi
+case "${EASYSTICK_TAB5_USB_CLASSES:-0}" in
+	0) ;;
+	1)
+		[[ "${EASYSTICK_BOARD:-stamp-p4}" == tab5 ]] || {
+			echo "EASYSTICK_TAB5_USB_CLASSES=1 requires EASYSTICK_BOARD=tab5" >&2; exit 2;
+		}
+		cat "${firmware_root}/linux/tab5/usb-classes.config.fragment" >>"${kernel_config_fragment}"
+		;;
+	*) echo "EASYSTICK_TAB5_USB_CLASSES must be 0 or 1" >&2; exit 2 ;;
+esac
 if [[ -n "$pstore_identity" ]]; then
 	cat >>"${kernel_config_fragment}" <<'EOF'
 
@@ -1153,7 +1163,8 @@ cmd53_bb_pa_id="${EASYSTICK_CMD53_BB_PA:-none}"
 cmd53_bb_0052_sha_id="${EASYSTICK_CMD53_BB_0052_SHA256:-none}"
 cmd53_bb_0053_sha_id="${EASYSTICK_CMD53_BB_0053_SHA256:-none}"
 cmd53_bb_0054_sha_id="${EASYSTICK_CMD53_BB_0054_SHA256:-none}"
-profile_identity="profile-contract=21 profile=${profile} network=${network_profile} ssh=${ssh_profile} lab=${lab_profile} sdio-default-mhz=${sdio_default_mhz} wdt-test-timeout-s=${wdt_test_timeout_s} wdt-test-no-feed=${wdt_test_no_feed} stacktrace-diagnostics=${stacktrace_diagnostics} stacktrace-module-debug-strip=${stacktrace_diagnostics} esp-hosted-cmd52-trace=${cmd52_trace} esp-hosted-cmd52-marker=${cmd52_marker} ssh-ledger=${EASYSTICK_SSH_LEDGER:-0} tcp22-ledger=${EASYSTICK_TCP22_LEDGER:-0} esp-hosted-tx-ledger=${EASYSTICK_ESPHOSTED_TX_LEDGER:-0} esp-hosted-diagnostics=${EASYSTICK_ESPHOSTED_DIAGNOSTICS:-0} dw-mmc-cmd53-err-prov=${EASYSTICK_DW_MMC_CMD53_ERR_PROV:-0} cmd53-retention-bb=${EASYSTICK_CMD53_RETENTION_BB:-0} cmd53-bb-allow-pio=${cmd53_bb_allow_pio} cmd53-bb-pa=${cmd53_bb_pa_id} cmd53-bb-0052-sha=${cmd53_bb_0052_sha_id} cmd53-bb-0053-sha=${cmd53_bb_0053_sha_id} cmd53-bb-0054-sha=${cmd53_bb_0054_sha_id} force-pio=${EASYSTICK_SDIO_FORCE_PIO:-1} idmac-inv=${EASYSTICK_IDMAC_DESC_INVALIDATE:-0} idmac-nc=${EASYSTICK_IDMAC_NONCOHERENT_RING:-0} cmd53-rx-desc=${EASYSTICK_CMD53_RX_DESC_BYTES:-0} buildroot-jlevel=${EASYSTICK_BUILDROOT_JLEVEL:-auto} c68=${c68_profile} top=${c68_top_profile} stress=${c68_stress_profile} l3=${EASYSTICK_C68_L3_SMOKE:-0} tsens-linux=${EASYSTICK_TSENS_LINUX:-0} tsens-oracle=${EASYSTICK_TSENS_ORACLE:-0}${lab_tools_identity}${pstore_identity}"
+profile_identity="profile-contract=22 profile=${profile} network=${network_profile} ssh=${ssh_profile} lab=${lab_profile} sdio-default-mhz=${sdio_default_mhz} wdt-test-timeout-s=${wdt_test_timeout_s} wdt-test-no-feed=${wdt_test_no_feed} stacktrace-diagnostics=${stacktrace_diagnostics} stacktrace-module-debug-strip=${stacktrace_diagnostics} esp-hosted-cmd52-trace=${cmd52_trace} esp-hosted-cmd52-marker=${cmd52_marker} ssh-ledger=${EASYSTICK_SSH_LEDGER:-0} tcp22-ledger=${EASYSTICK_TCP22_LEDGER:-0} esp-hosted-tx-ledger=${EASYSTICK_ESPHOSTED_TX_LEDGER:-0} esp-hosted-diagnostics=${EASYSTICK_ESPHOSTED_DIAGNOSTICS:-0} dw-mmc-cmd53-err-prov=${EASYSTICK_DW_MMC_CMD53_ERR_PROV:-0} cmd53-retention-bb=${EASYSTICK_CMD53_RETENTION_BB:-0} cmd53-bb-allow-pio=${cmd53_bb_allow_pio} cmd53-bb-pa=${cmd53_bb_pa_id} cmd53-bb-0052-sha=${cmd53_bb_0052_sha_id} cmd53-bb-0053-sha=${cmd53_bb_0053_sha_id} cmd53-bb-0054-sha=${cmd53_bb_0054_sha_id} force-pio=${EASYSTICK_SDIO_FORCE_PIO:-1} idmac-inv=${EASYSTICK_IDMAC_DESC_INVALIDATE:-0} idmac-nc=${EASYSTICK_IDMAC_NONCOHERENT_RING:-0} cmd53-rx-desc=${EASYSTICK_CMD53_RX_DESC_BYTES:-0} buildroot-jlevel=${EASYSTICK_BUILDROOT_JLEVEL:-auto} c68=${c68_profile} top=${c68_top_profile} stress=${c68_stress_profile} l3=${EASYSTICK_C68_L3_SMOKE:-0} tsens-linux=${EASYSTICK_TSENS_LINUX:-0} tsens-oracle=${EASYSTICK_TSENS_ORACLE:-0}${lab_tools_identity}${pstore_identity}"
+profile_identity+=" tab5-usb-classes=${EASYSTICK_TAB5_USB_CLASSES:-0}"
 
 set_config_value() {
 	local config=$1 key=$2 value=$3
@@ -2050,6 +2061,11 @@ rootfs_overlay="${external_root}/board/easystick-stamp-p4/rootfs-overlay"
 post_build_scripts="${external_root}/board/easystick-stamp-p4/post-build.sh"
 users_table="${external_root}/board/easystick-stamp-p4/users.txt"
 busybox_fragments=""
+if [[ "${EASYSTICK_BOARD:-stamp-p4}" == tab5 ]]; then
+	set_config_value "${br_output}/.config" BR2_PACKAGE_TAB5_TOOLS y
+else
+	set_config_value "${br_output}/.config" BR2_PACKAGE_TAB5_TOOLS "# BR2_PACKAGE_TAB5_TOOLS is not set"
+fi
 if $network_profile; then
 	# M2 loads esp32_sdio.ko from S40network.  Keep the module-loader
 	# applets enabled even when no SSH profile is selected; otherwise the
@@ -2253,6 +2269,25 @@ target_march=$(awk '$1 == "-march=" { print $2 }' <<<"$target_flags")
 }
 
 kernel_config="${br_output}/build/linux-custom/.config"
+if [[ "${EASYSTICK_BOARD:-stamp-p4}" == tab5 ]]; then
+	grep -Fqx 'CONFIG_GPIO_CDEV=y' "${kernel_config}" || {
+		echo "Tab5 kernel config check failed: CONFIG_GPIO_CDEV=y" >&2; exit 1;
+	}
+	for tool in tab5-gpio tab5-peripherals tab5-image tab5-camera; do
+		[[ -x "${br_output}/target/usr/bin/${tool}" ]] || {
+			echo "Tab5 tool missing: ${tool}" >&2; exit 1;
+		}
+	done
+fi
+if [[ "${EASYSTICK_TAB5_USB_CLASSES:-0}" == 1 ]]; then
+	for expected in CONFIG_USB_STORAGE=m CONFIG_BLK_DEV_SD=m CONFIG_VFAT_FS=y \
+		CONFIG_EXFAT_FS=m CONFIG_USB_VIDEO_CLASS=m CONFIG_USB_HID=m \
+		CONFIG_USB_NET_CDCETHER=m CONFIG_USB_RTL8152=m; do
+		grep -Fqx -- "$expected" "$kernel_config" || {
+			echo "Tab5 USB class config dropped: $expected" >&2; exit 1;
+		}
+	done
+fi
 for expected in \
 	"CONFIG_32BIT=y" \
 	"# CONFIG_MMU is not set" \

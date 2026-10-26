@@ -1,0 +1,38 @@
+# Experimental USB class layer only. This does NOT provide the Tab5 HS PHY,
+# host controller, VBUS power or DMA/cache integration. Keep opt-in until the
+# host path has been implemented and the image/RAM budgets have been checked.
+CONFIG_USB_SUPPORT=y
+CONFIG_USB=y
+CONFIG_MODULES=y
+CONFIG_SCSI=y
+CONFIG_BLK_DEV_SD=m
+CONFIG_USB_STORAGE=m
+CONFIG_EXFAT_FS=m
+CONFIG_FAT_FS=y
+CONFIG_VFAT_FS=y
+CONFIG_NLS=y
+CONFIG_NLS_CODEPAGE_437=y
+CONFIG_NLS_ISO8859_1=y
+CONFIG_MEDIA_SUPPORT=m
+CONFIG_MEDIA_SUPPORT_FILTER=y
+CONFIG_MEDIA_CAMERA_SUPPORT=y
+CONFIG_MEDIA_USB_SUPPORT=y
+CONFIG_VIDEO_DEV=m
+CONFIG_USB_VIDEO_CLASS=m
+
+# MeOS also exposes hub HID input and CDC-ECM Ethernet. These are class
+# drivers only; none of them substitutes for the missing Tab5 HS HCD/PHY.
+CONFIG_INPUT=y
+CONFIG_INPUT_EVDEV=y
+CONFIG_INPUT_MOUSEDEV=m
+CONFIG_HID_SUPPORT=y
+CONFIG_HID=y
+CONFIG_USB_HID=m
+CONFIG_NET=y
+CONFIG_INET=y
+CONFIG_NETDEVICES=y
+CONFIG_USB_NET_DRIVERS=y
+CONFIG_USB_USBNET=m
+CONFIG_USB_NET_CDCETHER=m
+CONFIG_USB_NET_CDC_NCM=m
+CONFIG_USB_RTL8152=m

@@ -32,3 +32,6 @@ CONFIG_INPUT_KEYBOARD=y
 CONFIG_KEYBOARD_M5STACK_TAB5=y
 CONFIG_I2C=y
 CONFIG_I2C_GPIO=y
+
+# Userspace GPIO API, without the deprecated global-number sysfs ABI.
+CONFIG_GPIO_CDEV=y

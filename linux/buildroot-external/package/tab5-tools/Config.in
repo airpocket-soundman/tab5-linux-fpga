@@ -1,0 +1,6 @@
+config BR2_PACKAGE_TAB5_TOOLS
+	bool "Tab5 peripheral tools"
+	help
+	  GPIO character-device client, peripheral inventory, BMP framebuffer
+	  viewer and bounded V4L2 single-frame YUYV capture to BMP.
+	  Does not enable a USB host controller or change board pin assignments.

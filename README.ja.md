@@ -68,3 +68,12 @@ EASYSTICK_BOARD=tab5 bash linux/build-c68.sh --vendor <out> --profile m3-lab
 ## ライセンス
 
 GPL-2.0-only（[LICENSE](LICENSE)）。boot-shim など、個別の SPDX-License-Identifier があるファイルはそちらに従います。
+
+## このフォークの周辺機器追加
+
+Tab5向けにシェルGPIO、MicroPythonの`tab5io.Pin`、周辺機器一覧、BMP表示、
+V4L2カメラの単一フレームBMP保存を追加しています。MicroPython本体は既存の
+m3-lab構成に含まれます。USBメモリ・カメラ・HID・Ethernetのクラス設定は実験用で、
+Tab5 HSホスト対応は未完了です。今回の追加は実機未検証です。
+使い方と残課題は[周辺機器対応状況](docs/TAB5_PERIPHERALS.md)を参照してください。
+MeOSの実装との対照は[機能移植一覧](docs/MEOS_FEATURE_PARITY.md)に記録しています。
