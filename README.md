@@ -2,6 +2,8 @@
 
 ## airpocket-soundman fork purpose
 
+2026-10-26: Added [shell and MicroPython GPIO input/output](docs/GPIO.md) through `tab5-gpio` and native `tab5gpio.Pin`, sharing restricted pin policy and exclusive line ownership. Host tests and NOMMU builds pass. Matching kernel/userspace updates are required; physical GPIO is unvalidated.
+
 2026-10-26: Added a [bounded LRU/write-through cache](docs/BLOCK_CACHE.md) to the host external-memory model. Tests cover direct backend writes, partial failures, stale handles and repeated-read equivalence. No Linux GPIO/DMA or FPGA backend is connected.
 
 The primary objective is FPGA-side DDR3 use for large-data tiled processing and explicit spill/restore; Linux and communication drivers provide the infrastructure. GPU architecture is also under study. A separate [MeOS variant](https://github.com/airpocket-soundman/tab5-meos-fpga) keeps OS-specific implementation and validation distinct.

@@ -2,6 +2,8 @@
 
 ## このフォークの目的
 
+2026-10-26：シェルの`tab5-gpio`とMicroPythonの`tab5gpio.Pin`による[GPIO入力・出力](docs/GPIO.md)を追加しました。予約ピン保護と排他所有を共通化し、ホスト試験とNOMMUビルドを確認。新しいカーネルとユーザーランドが必要で、実端子は未検証です。
+
 2026-10-26：外部RAM活用に向けた[小容量LRUキャッシュ](docs/BLOCK_CACHE.md)を追加。ホスト試験で直接書込み・途中失敗・解放後の古い内容を拒否し、繰返し読出しの内容一致を確認しました。Linux/FPGAへの接続は未実装です。
 
 主目的はFPGA側DDR3を利用した大容量データの分割処理・退避復元です。Linux・通信ドライバを基盤として開発し、GPU構成も検討します。[MeOS版](https://github.com/airpocket-soundman/tab5-meos-fpga)とはOS別の実装・検証を分けます。
