@@ -295,6 +295,7 @@ jobs:
           cp linux/tab5/microsd-spi.config.fragment artifacts/
           cp linux/kernel-patches/0081-input-tab5-st712x-touch.patch artifacts/
           cp linux/kernel-patches/0082-tab5-vt-scrollback.patch artifacts/
+          cp linux/kernel-patches/0083-gpio-esp32p4-isolate-direction.patch artifacts/
           cp linux/dts/tab5-touch.dtsi artifacts/
           cp linux/tab5/touch.config.fragment artifacts/
           printf 'Image_bytes=%s\nDTB_bytes=%s\n' "$image_size" "$dtb_size" \

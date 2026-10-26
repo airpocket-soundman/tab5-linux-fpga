@@ -34,6 +34,8 @@ jobs:
         run: |
           python3 linux/tab5/gpio/run_tests.py --cc gcc
           python3 linux/tab5/gpio/run_tests.py --cc clang
+          python3 linux/tab5/gpio/run_adapter_tests.py --cc gcc --sanitize
+          python3 linux/tab5/gpio/run_adapter_tests.py --cc clang --sanitize
           python3 tools/test_gpio_kernel_patch.py --reference work/0002.patch --cc gcc
           gcc -std=c11 -Os -Wall -Wextra -Werror linux/tab5/gpio/tab5_gpio.c linux/tab5/gpio/tab5_gpio_linux.c linux/tab5/gpio/tab5_gpio_cli.c -o work/tab5-gpio
           work/tab5-gpio list
