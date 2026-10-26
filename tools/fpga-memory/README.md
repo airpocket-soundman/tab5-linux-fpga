@@ -14,3 +14,5 @@ python -m unittest discover -s tools/fpga-memory -p test_memory_mock.py -v
 CLIは1オブジェクト128MiB、1転送1MiBを上限とし、一時ファイル容量はsizeの2倍。
 
 Linuxだけで実行できるC版は [Cファイルモデル診断](../../docs/LINUX_MEMORY_PROBE.md) を参照。`run_file_probe.py --cc cc --sanitize` で独立期待値・不正引数・破損検出を検証する。標準CIはMeOSを取得せず、このリポジトリ内で完結する。
+
+容量制限付きLRU/write-throughキャッシュは [設計・結果・制約](../../docs/BLOCK_CACHE.md) を参照。`python tools/fpga-memory/cache_demo.py --mock` で繰返し読出しの同一性とbackend要求回数を比較できる。時間や実機性能は測定しない。

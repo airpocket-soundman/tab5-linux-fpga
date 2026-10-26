@@ -28,14 +28,15 @@ jobs:
       - name: Python link, memory, and GPU budget checks (no hardware)
         run: |
           python3 -m unittest discover -s tools/fpga-link -p test_fpga_link.py -v
-          python3 -m unittest discover -s tools/fpga-memory -p test_memory_mock.py -v
-          python3 -m unittest discover -s tools/fpga-memory -p test_flat.py -v
+          python3 -m unittest discover -s tools/fpga-memory -p "test_*.py" -v
           python3 -m unittest discover -s tools/fpga-budget -p test_budget.py -v
           python3 -m unittest discover -s tools/fpga-gpu-model -p test_ownership.py -v
       - name: C link compatibility (no hardware)
         run: |
           python3 tools/fpga-link/run_c_codec.py --cc ${{ matrix.cc }}
           python3 tools/fpga-link/run_c_cli.py --cc ${{ matrix.cc }}
+      - name: Bounded cache comparison (no hardware or timing claims)
+        run: python3 tools/fpga-memory/cache_demo.py --mock
       - name: Large-data tiled mock and analytical budget
         run: |
           python3 tools/fpga-memory/memory_mock.py --mock --size 67108864 --transfer-limit 65536

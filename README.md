@@ -2,6 +2,8 @@
 
 ## airpocket-soundman fork purpose
 
+2026-10-26: Added a [bounded LRU/write-through cache](docs/BLOCK_CACHE.md) to the host external-memory model. Tests cover direct backend writes, partial failures, stale handles and repeated-read equivalence. No Linux GPIO/DMA or FPGA backend is connected.
+
 The primary objective is FPGA-side DDR3 use for large-data tiled processing and explicit spill/restore; Linux and communication drivers provide the infrastructure. GPU architecture is also under study. A separate [MeOS variant](https://github.com/airpocket-soundman/tab5-meos-fpga) keeps OS-specific implementation and validation distinct.
 
 2026-10-23: [Offline RAM, cross-implementation, and GPU memory models](docs/OFFLINE_DEVELOPMENT_2026-10-23.md) now cover host-only 64MiB tiled restore and shared C/Python data checks. These are not validation of physical DDR3, PARLIO, DMA or either target OS runtime.

@@ -38,6 +38,7 @@ class MockObjectMemory:
         self._file.truncate(capacity)
         self._free = [(0, capacity)]
         self._objects = {}
+        self._revisions = {}
         self._serial = 0
         self.peak_transfer = 0
         self.read_transfers = 0
@@ -55,6 +56,7 @@ class MockObjectMemory:
     def close(self):
         self._file.close()
         self._objects.clear()
+        self._revisions.clear()
         self._closed = True
 
     def _open(self):
@@ -66,6 +68,15 @@ class MockObjectMemory:
         if not isinstance(handle, Handle) or handle not in self._objects:
             raise ValueError("unknown, foreign or freed handle")
         return self._objects[handle]
+
+    def describe(self, handle):
+        """Validate a live object and return cache-coherence metadata (not wire ABI).
+
+        Revisions advance before validated write attempts, including failures.
+        This synchronous single-threaded mock does not implement a DMA fence.
+        """
+        self._resolve(handle)
+        return {"size": handle.size, "revision": self._revisions[handle]}
 
     def allocate(self, size):
         self._open()
@@ -81,12 +92,14 @@ class MockObjectMemory:
                 self._serial += 1
                 handle = Handle(self._serial, size)
                 self._objects[handle] = address
+                self._revisions[handle] = 0
                 return handle
         raise MemoryError("no contiguous extent available")
 
     def free(self, handle):
         address = self._resolve(handle)
         del self._objects[handle]
+        del self._revisions[handle]
         extents = sorted(self._free + [(address, handle.size)])
         self._free = []
         for start, size in extents:
@@ -125,6 +138,8 @@ class MockObjectMemory:
         check_range(offset, len(data), handle.size)
         if len(data) > self.transfer_limit:
             raise ValueError("transfer exceeds limit; use tiles")
+        # An error can follow partial mutation: revoke old cached content first.
+        self._revisions[handle] += 1
         self._write_at(address + offset, data)
 
     def tiles(self, handle, offset=0, length=None):

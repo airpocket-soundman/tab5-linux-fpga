@@ -2,6 +2,8 @@
 
 ## このフォークの目的
 
+2026-10-26：外部RAM活用に向けた[小容量LRUキャッシュ](docs/BLOCK_CACHE.md)を追加。ホスト試験で直接書込み・途中失敗・解放後の古い内容を拒否し、繰返し読出しの内容一致を確認しました。Linux/FPGAへの接続は未実装です。
+
 主目的はFPGA側DDR3を利用した大容量データの分割処理・退避復元です。Linux・通信ドライバを基盤として開発し、GPU構成も検討します。[MeOS版](https://github.com/airpocket-soundman/tab5-meos-fpga)とはOS別の実装・検証を分けます。
 
 2026-10-23：Tab5を利用せず、[外部RAMの意味モデル・OS間照合・GPUメモリ管理](docs/OFFLINE_DEVELOPMENT_2026-10-23.md)を追加しました。PC上で64MiBの分割保存・復元とC/Pythonの共通照合を確認。実機のDDR3・PARLIO・DMAの検証結果ではありません。 [Linux単独のCメモリ診断](docs/LINUX_MEMORY_PROBE.md)も追加し、GCC/Clangのsanitizer検査とTab5向けNOMMUビルドが成功しました。実機実行は未検証です。
