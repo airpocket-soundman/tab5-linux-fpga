@@ -1,6 +1,6 @@
 # Tab5 Linux × FPGA — プロジェクトガイド
 
-更新日：2026-10-22
+更新日：2026-10-28
 
 主目的は、Tang Primer 20Kの128MB DDR3をTab5 NOMMU Linuxから利用し、P4単体のメモリ制約で扱いにくいデータ処理を可能にすることです。用途別のメモリ管理と演算オフロードを研究し、応用としてFPGAによるGPU構成も検討します。Linuxと通信ドライバは、そのための基盤として開発します。
 
@@ -130,7 +130,7 @@ DDR3にフレームが収まっても、P4へ戻す回線が必要帯域に達�
 | OS / CPU | ESP32-P4 / RISC-V NOMMU Linux。上流イメージでLinux 6.18.35、online CPU 0（1コア）を実機確認。 |
 | 検証機材 | Tab5：P4 revision v1.3、16MBフラッシュ。BSP判定でST7121液晶（タッチFW=1）。Keyboardは未接続。 |
 | 無線 | ESP32-C6 / SDIO / ESP-Hosted-NG 1.0.6.0.1。更新完了とSoftAP・Dropbear起動ログを確認。外部クライアント接続とSSHログインは未確認。 |
-| FPGA / 外部領域 | Tang Primer 20K、128MB DDR3を想定。回路・評価は研究リポジトリ、共通配線・電源はキャリア仕様で管理。 |
+| FPGA / 外部領域 | Tang Primer 20K、128MB DDR3を想定。FPGAデバイス（回路・ビットストリーム・ピン・コマンド仕様）と共通配線・電源はキャリアリポジトリで管理。研究評価は研究リポジトリ。 |
 | 通信案 | 8bit PARLIO + 制御線。GPIO、IRQ、DMA、Linux側の利用可否は未確定。ピン番号・電気仕様は本ページでは固定しない。 |
 | プロトコル案 | コマンド、アドレス、長さ、要求ID、ペイロード、CRC、READYまたは割り込みを検討。ABIやパケット形式は未確定。 |
 | ユーザー空間との接続案 | /dev/経由のREAD / WRITEを目標とする。COPY / FILL、退避・復元、演算オフロードは段階的に研究する。 |
@@ -200,9 +200,9 @@ GPIO競合、PARLIO、IRQ、DMA、キャッシュ整合性を調査する段階�
 ## リポジトリの分担
 
 - [tab5-linux-fpga](https://github.com/airpocket-soundman/tab5-linux-fpga)：Tab5 Linux、起動処理、Device Tree、FPGA通信ドライバ、ユーザーランド接続、OSビルド。
-- [esp32p4-linux-fpga-memory](https://github.com/airpocket-soundman/esp32p4-linux-fpga-memory)：外部メモリ研究、用途別FPGA回路、評価アプリ、測定結果。
-- [tab5-tang-primer20k-carrier](https://github.com/airpocket-soundman/tab5-tang-primer20k-carrier)：共通キャリア基板、回路・PCB、GPIOと電源の共通仕様。
-- [tab5-fpga-gpu](https://github.com/airpocket-soundman/tab5-fpga-gpu)：FPGA GPUの回路・描画仕様・参照実装と評価を管理。本プロジェクトでもLinux側からの利用構成を検討する。初期の外部RAM研究とは別ビットストリームで検証する。
+- [esp32p4-linux-fpga-memory](https://github.com/airpocket-soundman/esp32p4-linux-fpga-memory)：外部メモリ研究の計画、評価方法、測定結果。
+- [tab5-tang-primer20k-carrier](https://github.com/airpocket-soundman/tab5-tang-primer20k-carrier)：共通キャリア基板、GPIOと電源の共通仕様、FPGAデバイス（全ビットストリーム、RTL、リンク・コマンド仕様）。
+- [tab5-fpga-gpu](https://github.com/airpocket-soundman/tab5-fpga-gpu)：ESP-IDFのホスト実装、GPU LABベンチマーク、モデル評価。FPGA側の回路はキャリアリポジトリへ移管予定。GFX/NPUはLinuxからも使う。
 
 ## 記録と根拠
 

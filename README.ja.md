@@ -4,7 +4,7 @@
 
 主目的は **FPGA側128MB DDR3の活用** です。大容量データの分割処理、退避・復元、演算用バッファを研究し、GPU用VRAMと描画回路の構成も検討します。詳細は [RAM活用・GPU構成案](docs/RAM_GPU_PLAN.md) を参照してください。Linuxと通信ドライバはこの目標の基盤として開発します。用途案は実装・検証前です。
 
-**tab5-linux-fpga** は、Tab5 NOMMU Linuxを基盤にTang Primer 20Kとの通信ドライバとOSビルド環境を開発します。研究計画・FPGA回路・評価アプリは [esp32p4-linux-fpga-memory](https://github.com/airpocket-soundman/esp32p4-linux-fpga-memory) で管理します。
+**tab5-linux-fpga** は、Tab5 NOMMU Linuxを基盤にTang Primer 20Kとの通信ドライバとOSビルド環境を開発します。FPGAデバイス本体（全ビットストリーム、RTL、ピン、リンク・コマンド仕様）は [tab5-tang-primer20k-carrier](https://github.com/airpocket-soundman/tab5-tang-primer20k-carrier) で一元管理し、本リポジトリはその仕様に沿ってLinux側を実装します（2026-10-28変更、[リポジトリ分担](https://github.com/airpocket-soundman/tab5-tang-primer20k-carrier/blob/d9a2618ffc33ae84c4fdd98e517cb2517827d13f/docs/リポジトリ分担と参照ルール.md)）。外部メモリの研究計画・評価は [esp32p4-linux-fpga-memory](https://github.com/airpocket-soundman/esp32p4-linux-fpga-memory) で管理します。
 
 着手前に [開発目的と引き継ぎ](docs/DEVELOPMENT_GOALS.md) を読んでください。現在の目的・仕様・計画・進捗は [公開ガイド](https://airpocket-soundman.github.io/tab5-linux-fpga/) と [Markdown版](docs/PROJECT_OVERVIEW.md) にまとめています。フォークのCIビルド、上流イメージの1コア実機起動、単体ESP-IDFでのST7121表示を確認済みです。LinuxのST7121表示とFPGA通信は未検証です。以下の既存説明は上流の動作報告です。直接のフォーク元は [Riti0208/tab5-linux](https://github.com/Riti0208/tab5-linux) です。
 

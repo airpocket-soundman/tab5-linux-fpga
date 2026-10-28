@@ -1,6 +1,6 @@
 # Tab5 Linux FPGA 開発目的と引き継ぎ
 
-更新日：2026-10-22
+更新日：2026-10-22（リポジトリ分担のみ2026-10-28更新）
 
 2026-10-27追記：MeOS相当の周辺機器対応を開始。Tab5のGPIO character-device
 ツールと周辺機器一覧、USB Storage/UVCの任意追加設定を追加した。
@@ -29,11 +29,11 @@ LinuxのAPIや開発資産を利用して研究を進めるため、MeOSでは�
 | リポジトリ | 管理するもの |
 | --- | --- |
 | [tab5-linux-fpga](https://github.com/airpocket-soundman/tab5-linux-fpga) | Tab5 Linux本体、起動処理、Device Tree、FPGA通信ドライバ、ユーザーランドへの接続、OSイメージのビルド |
-| [esp32p4-linux-fpga-memory](https://github.com/airpocket-soundman/esp32p4-linux-fpga-memory) | 外部メモリ研究計画、用途別FPGA回路、評価アプリ、測定結果 |
-| [tab5-tang-primer20k-carrier](https://github.com/airpocket-soundman/tab5-tang-primer20k-carrier) | 共通キャリア基板、回路・PCB、共通ハードウェア仕様の起点 |
-| [tab5-fpga-gpu](https://github.com/airpocket-soundman/tab5-fpga-gpu) | GPU回路・描画仕様・参照実装と評価。本プロジェクトでもLinuxからの利用構成を検討。初期段階は外部RAM研究と別ビットストリームで検証する |
+| [esp32p4-linux-fpga-memory](https://github.com/airpocket-soundman/esp32p4-linux-fpga-memory) | 外部メモリ研究計画、評価方法、測定結果 |
+| [tab5-tang-primer20k-carrier](https://github.com/airpocket-soundman/tab5-tang-primer20k-carrier) | 共通キャリア基板、共通ハードウェア仕様、FPGAデバイス（全ビットストリーム、RTL、ピン、リンク・コマンド仕様）の起点 |
+| [tab5-fpga-gpu](https://github.com/airpocket-soundman/tab5-fpga-gpu) | ESP-IDFのホスト実装、GPU LABベンチマーク、モデル評価。FPGA側の回路はキャリアリポジトリへ移管予定 |
 
-Linuxソースを研究リポジトリへ丸ごとコピーせず、このフォークで履歴を保って開発する。評価結果には使用したOSコミットとFPGAビットストリームの識別情報を記録する。
+Linuxソースを研究リポジトリへ丸ごとコピーせず、このフォークで履歴を保って開発する。評価結果には使用したOSコミットとFPGAビットストリームの識別情報を記録する。2026-10-28から、FPGAの機能（GFX、NPU、HDMI、RAMdisk）はESP-IDF・MeOS・Linuxのどれからも使う共通デバイスとしてキャリアリポジトリで定義する。本リポジトリは従うデバイス仕様の版（キャリアのコミットSHA）を記録する（[分担と参照ルール](https://github.com/airpocket-soundman/tab5-tang-primer20k-carrier/blob/d9a2618ffc33ae84c4fdd98e517cb2517827d13f/docs/リポジトリ分担と参照ルール.md)）。
 
 ## 出発点と現在の状態
 
@@ -60,7 +60,7 @@ Linuxソースを研究リポジトリへ丸ごとコピーせず、このフォ
 
 初期案は8bit PARLIOと制御線による接続。コマンド、アドレス、長さ、要求ID、ペイロード、CRC、READYまたは割り込みを検討する。DMAは目標であり、利用可能なLinuxドライバは未確定。SDIOや表示用DMAが動くことを、PARLIO DMA対応の証拠として扱わない。
 
-GPIO割り当てと電源は、キャリア基板リポジトリと研究リポジトリの共通ハードウェア仕様を照合する。現在の割り当ては暫定で、内部機器との競合、GPIOドライバの他ピンへの影響、起動時の状態、IRQ、DMA、キャッシュ整合性を確認してから固定する。
+GPIO割り当てと電源は、キャリア基板リポジトリの共通ハードウェア仕様を照合する。現在の割り当ては暫定で、内部機器との競合、GPIOドライバの他ピンへの影響、起動時の状態、IRQ、DMA、キャッシュ整合性を確認してから固定する。
 
 ## メモリ管理の前提
 
@@ -74,7 +74,7 @@ P4に通常のMMUがない制約は残る。「FPGA仮想MMU」は研究上の�
 2. 小容量のP4作業バッファで大容量データを分割処理し、処理結果と最大常駐量を測定する。
 3. 明示的な退避・復元を測り、CPUから直接アクセスできない制約と復元コストを整理する。
 4. 一つの演算オフロードを選び、転送を含む処理時間と精度をP4基準と比較する。
-5. GPUは別系統で最小描画回路とVRAM構成を設計し、通信・DDR3成立後に実機評価する。初期は外部RAM用とGPU用を別ビットストリームにし、同時搭載は資源と帯域の評価後に判断する。
+5. GPUは別系統で最小描画回路とVRAM構成を設計し、通信・DDR3成立後に実機評価する。ビットストリームは機能別（LINK/GFX/NPU/MEM）とし、同時搭載は資源と帯域の評価後に判断する（キャリアリポジトリで管理）。
 
 Linuxの起動・表示対応だけで主目的を完了としない。無改造アプリの大容量mallocや通常のスワップとは区別し、対応アプリと明示的APIで実証する。
 
